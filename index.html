@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Suivi curling">
+<meta name="theme-color" content="#E4ECF1">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<title>Suivi curling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#E4ECF1;--surface:#F8FBFC;--line:#C9D6DF;--ink:#13263B;--muted:#56687A;
+  --blue:#2B66A8;--red:#C3343B;--board:#B7C4CE;
+  --cond:"Barlow Condensed","Arial Narrow","Helvetica Neue",system-ui,sans-serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{color-scheme:dark;--bg:#0D1722;--surface:#162332;--line:#2A3B4E;--ink:#E5EDF3;--muted:#95A7B7;--blue:#74A6DC;--red:#E26870;--board:#24364A}
+}
+*{box-sizing:border-box}
+html{height:100%}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:16px/1.45 var(--sans);-webkit-tap-highlight-color:transparent;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+#app{max-width:680px;margin:0 auto;padding:10px 14px 40px}
+h1,h2,h3{font-family:var(--cond);font-weight:700;margin:0;line-height:1.05}
+h1{font-size:2.6rem}
+h2{font-size:1.7rem}
+h3{font-size:1.3rem;margin:22px 0 8px}
+p{margin:6px 0}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;margin-bottom:8px}
+.top h2{flex:1;text-align:center}
+.link{border:0;background:none;color:var(--blue);padding:10px 4px;font-weight:600;min-width:64px;text-align:left}
+.link.r{text-align:right}
+.btn{display:block;width:100%;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:13px 16px;font-weight:600;text-align:left}
+.btn small{display:block;font-weight:400;color:var(--muted);font-size:.85rem}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);text-align:center}
+.btn.primary small{color:inherit;opacity:.75}
+.btn.danger{color:var(--red)}
+.btn.c{text-align:center}
+.stack>*+*{margin-top:8px}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;border-radius:9px;padding:9px 6px;font-weight:600;color:var(--muted);white-space:nowrap}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.seg.scroll{overflow-x:auto}
+.seg.scroll button{flex:0 0 auto;min-width:46px}
+label.f{display:block;margin:14px 0 5px;font-size:.85rem;color:var(--muted);font-weight:600}
+input,select{font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input[type=checkbox]{width:auto;margin-right:8px}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--blue);margin:12px 0 4px}
+
+/* Accueil */
+.hero{display:flex;align-items:center;gap:16px;margin:26px 0 26px}
+.hero svg{width:84px;height:84px;flex:none}
+.hero p{margin-top:6px}
+
+/* Équipes */
+.colors{display:flex;gap:10px}
+.chip{width:40px;height:40px;border-radius:50%;border:3px solid transparent;background:var(--c);box-shadow:inset 0 0 0 2px rgba(0,0,0,.15)}
+.chip.on{border-color:var(--ink)}
+.player{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;margin-top:10px}
+.player .ph{display:flex;justify-content:space-between;align-items:center;font-family:var(--cond);font-weight:600;font-size:1.15rem;margin-bottom:8px}
+.player .ph button{border:0;background:none;color:var(--red);font-family:var(--sans);font-size:.85rem;font-weight:600}
+.player label.f{margin-top:10px}
+.group-title{font-family:var(--cond);font-size:1.15rem;font-weight:600;color:var(--muted);margin:20px 0 6px}
+.dot{display:inline-block;width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 2px rgba(0,0,0,.2)}
+
+/* Partie */
+.board{display:grid;grid-template-columns:1fr auto auto auto 1fr;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 12px}
+.board.train{grid-template-columns:1fr auto}
+.board .tm{display:flex;align-items:center;gap:7px;min-width:0;font-weight:600}
+.board .tm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board .tm.r{flex-direction:row-reverse;text-align:right}
+.board .tm em{font-style:normal;font-size:.72rem;color:var(--muted);font-weight:500}
+.board b{font-family:var(--cond);font-size:2.1rem;line-height:1}
+.board .mid{text-align:center;font-family:var(--cond);font-weight:600;font-size:1.05rem;line-height:1.1}
+.board .mid small{display:block;font-family:var(--sans);font-weight:400;font-size:.72rem;color:var(--muted)}
+.sheet-wrap{position:relative;margin-top:10px;background:var(--board);border-radius:16px;overflow:hidden;height:min(56vh,118vw)}
+.sheet-wrap svg{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.viewtog{position:absolute;right:8px;top:8px;display:flex;background:rgba(19,38,59,.82);border-radius:10px;padding:3px;gap:2px}
+.viewtog button{border:0;background:none;color:#DCE6EE;font-size:.78rem;font-weight:600;padding:6px 9px;border-radius:7px}
+.viewtog button.on{background:#F4F8FA;color:#13263B}
+.who{display:flex;align-items:center;gap:10px;margin:12px 0 10px}
+.who .num{font-family:var(--cond);font-weight:700;font-size:1.3rem;white-space:nowrap}
+.who select{flex:1;min-width:0;padding:8px 10px}
+.steps{display:flex;gap:6px;margin:12px 0 4px}
+.steps span{flex:1;text-align:center;font-size:.8rem;font-weight:600;color:var(--muted);border-bottom:3px solid var(--line);padding-bottom:4px}
+.steps span.on{color:var(--ink);border-color:var(--blue)}
+.steps span.done{color:var(--ink);border-color:var(--ink)}
+.hint{min-height:2.9em;margin:8px 0}
+.chrono{display:flex;gap:8px;margin:6px 0 10px}
+.chrono .btn{flex:1.4;text-align:center}
+.chrono .btn.run{background:var(--red);border-color:var(--red);color:#fff;font-variant-numeric:tabular-nums}
+.chrono input{flex:1;text-align:center}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
+.card h3{margin:0 0 6px}
+.card .btn{margin-top:8px}
+.menu{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-top:10px;overflow:hidden}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:13px 14px;font-weight:600;border-top:1px solid var(--line)}
+.menu button:first-child{border-top:0}
+.menu button.danger{color:var(--red)}
+
+/* Historique */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;white-space:nowrap;border-top:1px solid var(--line)}
+th{font-weight:600;color:var(--muted);border-top:0}
+th:first-child,td:first-child{text-align:left}
+ol.shots{list-style:none;margin:0;padding:0}
+ol.shots li{display:flex;gap:10px;align-items:flex-start;padding:10px 4px;border-top:1px solid var(--line);cursor:pointer}
+ol.shots li.on{background:var(--surface);border-radius:10px}
+ol.shots .n{font-family:var(--cond);font-weight:700;font-size:1.2rem;width:22px;flex:none}
+ol.shots .dot{margin-top:4px}
+.info{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;min-height:76px}
+.info b{font-family:var(--cond);font-size:1.2rem}
+.empty{border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center;z-index:9}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+/* ---------- Dimensions de la piste (cm) ----------
+   x : distance de la ligne centrale (+ à droite vu du lanceur)
+   y : distance de la ligne de tee (+ vers la hog line) */
+const HOG=640.1, BACK=-182.9, W2=237.5, R=14.5, HOUSE=182.9, HACK=1006;
+const VIEWS={maison:'-250 -232 500 540',piste:'-250 -262 500 940'};
+const POS=['Premier','Deuxième','Troisième','Skip','Substitut'];
+const COLORS=[['Rouge','#C8343B'],['Jaune','#E8B923'],['Bleu','#2E6FB7'],['Vert','#2F8F5B'],['Noir','#2A2F35']];
+const TYPES=[['placement','Placement'],['garde','Garde'],['sortie','Sortie']];
+const PRACTICE='#A7B0B7';
+const DB_KEY='suiviCurling.v1';
+
+/* ---------- Données ---------- */
+let db=load();
+function load(){try{const t=localStorage.getItem(DB_KEY);if(t){const d=JSON.parse(t);return{teams:d.teams||[],games:d.games||[],currentId:d.currentId||null}}}catch(e){}return{teams:[],games:[],currentId:null}}
+function save(){try{localStorage.setItem(DB_KEY,JSON.stringify(db))}catch(e){toast('Sauvegarde impossible sur cet appareil')}}
+
+/* ---------- Utilitaires ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const uid=()=>Math.random().toString(36).slice(2,10);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const r1=n=>Math.round(n*10)/10;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fr=(n,d=1)=>n==null||!isFinite(n)?'–':n.toFixed(d).replace('.',',');
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+const parseNum=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isFinite(n)?n:null};
+const fmtDate=iso=>new Date(iso).toLocaleDateString('fr-CA',{day:'numeric',month:'long',year:'numeric'});
+const pName=(p,i)=>p.name&&p.name.trim()?p.name.trim():POS[i]||'Joueur';
+let toastT;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200)}
+
+/* ---------- Règles ---------- */
+function inPlay(s){return Math.abs(s.x)+R<W2 && s.y+R>=BACK && s.y+R<=HOG}
+function inHouse(s){return Math.hypot(s.x,s.y)<=HOUSE+R}
+function scoreEnd(stones){
+  const h=stones.filter(s=>s.team!=='X'&&inHouse(s)).map(s=>({...s,d:Math.hypot(s.x,s.y)})).sort((a,b)=>a.d-b.d);
+  if(!h.length)return{team:null,pts:0};
+  const t=h[0].team;let p=0;for(const s of h){if(s.team!==t)break;p++}
+  return{team:t,pts:p};
+}
+function diff(before,after){
+  const removed=[],moved=[];
+  for(const b of before){const a=after.find(s=>s.id===b.id);if(!a)removed.push(b.team);else if(Math.hypot(a.x-b.x,a.y-b.y)>5)moved.push(b.team)}
+  return{removed,moved};
+}
+const sortieOk=s=>s.removed.some(t=>t!==s.team);
+function resultText(s,g){
+  const parts=[];const adv=g.mode==='competition'?' adverse':'';
+  if(!s.final)parts.push('Pierre lancée hors jeu');
+  const o=s.removed.filter(t=>t!==s.team).length,w=s.removed.filter(t=>t===s.team).length,m=s.moved.length;
+  if(o)parts.push(o>1?`${o} pierres${adv?' adverses':''} sorties`:`1 pierre${adv} sortie`);
+  if(w)parts.push(w>1?`${w} pierres de l’équipe sorties`:'1 pierre de l’équipe sortie');
+  if(m)parts.push(m>1?`${m} pierres déplacées`:'1 pierre déplacée');
+  return parts.join(', ');
+}
+
+/* ---------- Partie ---------- */
+const curGame=()=>db.games.find(g=>g.id===db.currentId&&!g.finished);
+const lastEnd=g=>g.ends[g.ends.length-1];
+const maxStones=g=>g.mode==='competition'?16:8;
+const colorOf=(g,t)=>t==='X'?PRACTICE:(g[t]?g[t].color:PRACTICE);
+const currentStones=e=>e.shots.length?clone(e.shots[e.shots.length-1].after):[];
+function totals(g){let A=0,B=0;for(const e of g.ends)if(e.score&&e.score.pts){if(e.score.team==='A')A+=e.score.pts;else if(e.score.team==='B')B+=e.score.pts}return{A,B}}
+function nextThrow(g,e){
+  const k=e.shots.length;let team,ti;
+  if(g.mode!=='competition'){team='A';ti=k}
+  else{const first=e.hammer==='A'?'B':'A';team=k%2===0?first:(first==='A'?'B':'A');ti=Math.floor(k/2)}
+  if(ti%2===1){const prev=[...e.shots].reverse().find(s=>s.team===team);if(prev)return{team,playerId:prev.playerId}}
+  const ps=g[team].players;const p=ps[Math.min(Math.floor(ti/2),Math.min(3,ps.length-1))];
+  return{team,playerId:p?p.id:null};
+}
+function releaseOf(p){return p.start==='custom'?{dist:parseNum(p.dist),offset:parseNum(p.offset)??0}:{dist:HACK,offset:0}}
+function newEnd(g){const e=lastEnd(g);let h=e.hammer;if(g.mode==='competition'&&e.score&&e.score.pts>0)h=e.score.team==='A'?'B':'A';g.ends.push({n:g.ends.length+1,hammer:h,shots:[]})}
+function endScore(g,e){const st=currentStones(e);return g.mode==='competition'?scoreEnd(st):{team:null,pts:0,inHouse:st.filter(s=>s.team==='A'&&inHouse(s)).length}}
+
+/* ---------- État de l'interface ---------- */
+let screen='home',view='maison',edit=null,ng=null,rp=null,drag=null;
+let ui={};
+let chrono={t0:null,iv:null};
+function resetShot(){
+  stopChrono();
+  const g=curGame();if(!g)return;const e=lastEnd(g);
+  const nt=e.score?{team:'A',playerId:null}:nextThrow(g,e);
+  ui={step:'cible',type:'placement',team:nt.team,playerId:nt.playerId,target:null,hog:'',stones:currentStones(e),before:currentStones(e),thrownId:null,selected:null,practice:false,menu:false,forceEnd:false};
+}
+function shotMode(){const g=curGame();if(!g)return false;const e=lastEnd(g);return !e.score&&!ui.forceEnd&&e.shots.length<maxStones(g)}
+function toggleChrono(){
+  if(chrono.t0==null){chrono.t0=performance.now();chrono.iv=setInterval(tickChrono,50);tickChrono()}
+  else{ui.hog=fr((performance.now()-chrono.t0)/1000,2);stopChrono();renderPanel()}
+}
+function stopChrono(){clearInterval(chrono.iv);chrono.t0=null;chrono.iv=null}
+function tickChrono(){const b=$('#chronoBtn');if(b&&chrono.t0!=null)b.textContent=`Arrêter  ${fr((performance.now()-chrono.t0)/1000,2)} s`}
+
+/* ---------- Dessin de la piste ---------- */
+function sheetBase(){
+  const ice='#F4F8FA',ink='#1B2B3C';
+  return `<rect x="-600" y="-600" width="1200" height="1700" fill="var(--board)"/>
+<rect x="${-W2}" y="-262" width="${W2*2}" height="970" fill="${ice}"/>
+<rect x="${-W2}" y="-262" width="${W2*2}" height="${BACK+262}" fill="#E1E8EC"/>
+<circle r="182.9" fill="#2E6FB7"/><circle r="121.9" fill="${ice}"/><circle r="61" fill="#C8343B"/><circle r="15.2" fill="${ice}"/>
+<line x1="${-W2}" x2="${W2}" y1="0" y2="0" stroke="${ink}" stroke-width="1.4"/>
+<line x1="${-W2}" x2="${W2}" y1="${BACK}" y2="${BACK}" stroke="${ink}" stroke-width="1.8"/>
+<line x1="0" x2="0" y1="-262" y2="708" stroke="${ink}" stroke-width="1.2"/>
+<line x1="${-W2}" x2="${W2}" y1="${HOG}" y2="${HOG}" stroke="#C8343B" stroke-width="10"/>
+<text x="${W2-8}" y="${HOG-12}" text-anchor="end" font-size="15" fill="#5A6B7A" font-family="system-ui,sans-serif">hog line</text>
+<text x="${W2-8}" y="${BACK-8}" text-anchor="end" font-size="15" fill="#5A6B7A" font-family="system-ui,sans-serif">back line</text>
+<text x="${W2-8}" y="-8" text-anchor="end" font-size="15" fill="#5A6B7A" font-family="system-ui,sans-serif">tee line</text>`;
+}
+function stoneSVG(s,color,o={}){
+  return `<g transform="translate(${r1(s.x)} ${r1(s.y)})" pointer-events="none">
+${o.selected?`<circle r="${R+7}" fill="none" stroke="#2B66A8" stroke-width="3.5"/>`:''}
+<circle r="${R}" fill="#7A8086" stroke="#3E4449" stroke-width="1.6"/><circle r="${R-3.6}" fill="${color}"/>
+<rect x="-7.5" y="-2.3" width="15" height="4.6" rx="2.3" fill="rgba(0,0,0,.3)"/>
+${o.thrown?`<circle r="${R+4}" fill="none" stroke="#13263B" stroke-width="2" stroke-dasharray="4 3"/>`:''}</g>`;
+}
+function targetSVG(t){return `<g transform="translate(${t.x} ${t.y})" pointer-events="none"><circle r="10" fill="none" stroke="#13263B" stroke-width="2.4"/><path d="M-16 0H-6M6 0H16M0-16V-6M0 6V16" stroke="#13263B" stroke-width="2.4"/></g>`}
+function lineSVG(a,b){return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#13263B" stroke-width="1.6" stroke-dasharray="5 4" pointer-events="none"/>`}
+function viewToggle(){return `<div class="viewtog" role="group" aria-label="Vue"><button data-act="view" data-v="maison" class="${view==='maison'?'on':''}">Maison</button><button data-act="view" data-v="piste" class="${view==='piste'?'on':''}">Jusqu’à la hog</button></div>`}
+function svgPt(svg,e){const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse())}
+
+/* ---------- Écrans ---------- */
+const app=$('#app');
+function go(s,param){screen=s;if(s==='replay')rp={id:param,end:0,k:null};render();window.scrollTo(0,0)}
+function render(){
+  if(screen==='game'&&!curGame())screen='home';
+  ({home:renderHome,teams:renderTeams,team:renderTeamEdit,new:renderNew,game:renderGame,history:renderHistory,replay:renderReplay}[screen]||renderHome)();
+}
+function topBar(title,back,right=''){return `<div class="top"><button class="link" data-act="go" data-v="${back}">‹ Retour</button><h2>${title}</h2><div style="min-width:64px;text-align:right">${right}</div></div>`}
+const logo=`<svg viewBox="-100 -100 200 200" aria-hidden="true"><circle r="96" fill="#2E6FB7"/><circle r="64" fill="#F4F8FA"/><circle r="32" fill="#C8343B"/><circle r="9" fill="#F4F8FA"/><path d="M-100 0H100M0-100V100" stroke="#1B2B3C" stroke-width="2.5"/><g transform="translate(40 58)"><circle r="26" fill="#7A8086" stroke="#3E4449" stroke-width="3"/><circle r="19" fill="#C8343B"/><rect x="-13" y="-4" width="26" height="8" rx="4" fill="rgba(0,0,0,.3)"/></g></svg>`;
+
+function renderHome(){
+  const cur=curGame();
+  app.innerHTML=`<div class="hero">${logo}<div><h1>Suivi curling</h1><p class="muted">Entraînements et parties, pierre par pierre.</p></div></div>
+<div class="stack">
+${cur?`<button class="btn primary" data-act="go" data-v="game">Reprendre ${cur.mode==='competition'?'la partie':'l’entraînement'} en cours<small>${esc(cur.A.name)}${cur.B?' contre '+esc(cur.B.name):''}, bout ${lastEnd(cur).n}</small></button>`:''}
+<button class="btn" data-act="go" data-v="new">Nouvelle partie ou entraînement<small>Choisir les équipes et commencer à noter</small></button>
+<button class="btn" data-act="go" data-v="history">Historique<small>Revoir les parties lancer par lancer</small></button>
+<button class="btn" data-act="go" data-v="teams">Équipes et joueurs<small>Joueurs, ordre de lancer et point de départ</small></button>
+</div>`;
+}
+
+/* --- Équipes --- */
+function renderTeams(){
+  const mine=db.teams.filter(t=>!t.adversaire),opp=db.teams.filter(t=>t.adversaire);
+  const item=t=>`<button class="btn" data-act="editTeam" data-v="${t.id}"><span style="display:flex;align-items:center;gap:10px"><i class="dot" style="background:${t.color}"></i>${esc(t.name)}</span><small>${t.players.map((p,i)=>esc(pName(p,i))).join(', ')}</small></button>`;
+  app.innerHTML=`${topBar('Équipes','home')}
+<div class="stack">${mine.length?mine.map(item).join(''):'<div class="empty">Créez votre équipe pour commencer à noter les lancers.</div>'}</div>
+${opp.length?`<div class="group-title">Équipes adverses</div><div class="stack">${opp.map(item).join('')}</div>`:''}
+<div style="margin-top:18px"><button class="btn primary" data-act="newTeam">Nouvelle équipe</button></div>`;
+}
+const blankPlayer=()=>({id:uid(),name:'',start:'hack',dist:'',offset:'0'});
+function renderTeamEdit(){
+  const t=edit;
+  app.innerHTML=`${topBar(t.isNew?'Nouvelle équipe':'Équipe','teams')}
+<label class="f" for="tname">Nom de l’équipe</label><input id="tname" data-in="tname" value="${esc(t.name)}" placeholder="ex. GTX Montréal">
+<label class="f">Couleur des pierres</label><div class="colors">${COLORS.map(([n,c])=>`<button class="chip ${t.color===c?'on':''}" data-act="color" data-v="${c}" aria-label="${n}" style="--c:${c}"></button>`).join('')}</div>
+<label class="f"><input type="checkbox" data-act="advToggle" ${t.adversaire?'checked':''}>Équipe adverse</label>
+<h3>Joueurs</h3><p class="muted small">L’ordre ci-dessous est l’ordre de lancer. Le point de départ sert à comparer les temps et les trajectoires d’un joueur à l’autre.</p>
+${t.players.map((p,i)=>`<div class="player"><div class="ph"><span>${POS[i]}</span>${t.players.length>1?`<button data-act="delPlayer" data-v="${i}">Retirer</button>`:''}</div>
+<input data-in="pname" data-i="${i}" value="${esc(p.name)}" placeholder="Nom du joueur" aria-label="Nom du joueur">
+<label class="f">Point de départ</label>
+<div class="seg"><button data-act="pstart" data-v="${i}:hack" class="${p.start!=='custom'?'on':''}">Hack (debout)</button><button data-act="pstart" data-v="${i}:custom" class="${p.start==='custom'?'on':''}">Fauteuil ou autre</button></div>
+${p.start==='custom'?`<div class="row"><div><label class="f">Distance de la hog line (cm)</label><input data-in="pdist" data-i="${i}" inputmode="decimal" value="${esc(p.dist)}" placeholder="ex. 120"></div><div><label class="f">Décalage du centre (cm)</label><input data-in="poff" data-i="${i}" inputmode="decimal" value="${esc(p.offset)}" placeholder="+ droite, − gauche"></div></div>`:`<p class="muted small" style="margin-top:8px">Départ au hack, à ${HACK} cm de la hog line, sur la ligne centrale.</p>`}
+</div>`).join('')}
+${t.players.length<5?`<div style="margin-top:10px"><button class="btn c" data-act="addPlayer">Ajouter un joueur</button></div>`:''}
+<div class="stack" style="margin-top:18px"><button class="btn primary" data-act="saveTeam">Enregistrer l’équipe</button>
+${!t.isNew?`<button class="btn danger c" data-act="delTeam">Supprimer l’équipe</button>`:''}</div>`;
+}
+
+/* --- Nouvelle partie --- */
+function renderNew(){
+  const mine=db.teams.filter(t=>!t.adversaire),others=db.teams.filter(t=>t.id!==ng.teamId);
+  if(!mine.length){app.innerHTML=`${topBar('Nouvelle partie','home')}<div class="empty">Créez d’abord votre équipe et ses joueurs.</div><div style="margin-top:12px"><button class="btn primary" data-act="newTeam">Créer mon équipe</button></div>`;return}
+  if(!ng.teamId||!mine.find(t=>t.id===ng.teamId))ng.teamId=mine[0].id;
+  const comp=ng.mode==='competition';
+  app.innerHTML=`${topBar('Nouvelle partie','home')}
+<div class="seg"><button data-act="ngMode" data-v="competition" class="${comp?'on':''}">Compétition</button><button data-act="ngMode" data-v="entrainement" class="${!comp?'on':''}">Entraînement</button></div>
+<label class="f">Mon équipe</label><select data-ch="ngTeam">${mine.map(t=>`<option value="${t.id}" ${t.id===ng.teamId?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+${comp?`<label class="f">Équipe adverse</label><select data-ch="ngOpp"><option value="">Nouvelle équipe adverse</option>${others.map(t=>`<option value="${t.id}" ${t.id===ng.oppId?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+${!ng.oppId?`<input style="margin-top:8px" data-in="ngOppName" value="${esc(ng.oppName)}" placeholder="Nom de l’équipe adverse">`:''}
+<label class="f">Marteau au premier bout</label><div class="seg"><button data-act="ngHammer" data-v="A" class="${ng.hammer==='A'?'on':''}">Mon équipe</button><button data-act="ngHammer" data-v="B" class="${ng.hammer==='B'?'on':''}">Adversaire</button></div>`:''}
+<div class="row"><div><label class="f">Nombre de bouts</label><input data-in="ngEnds" inputmode="numeric" value="${esc(ng.ends)}"></div></div>
+<label class="f">Événement ou lieu (facultatif)</label><input data-in="ngEvent" value="${esc(ng.event)}" placeholder="ex. Tournoi de Laval">
+<div style="margin-top:20px"><button class="btn primary" data-act="startGame">Commencer</button></div>`;
+}
+function startGame(){
+  const A=db.teams.find(t=>t.id===ng.teamId);if(!A)return toast('Choisissez votre équipe');
+  let B=null;
+  if(ng.mode==='competition'){
+    B=ng.oppId?db.teams.find(t=>t.id===ng.oppId):null;
+    if(!B){B={id:uid(),name:ng.oppName.trim()||'Adversaire',color:A.color==='#E8B923'?'#C8343B':'#E8B923',adversaire:true,players:[0,1,2,3].map(()=>blankPlayer())};db.teams.push(B)}
+  }
+  const snap=t=>({teamId:t.id,name:t.name,color:t.color,players:clone(t.players)});
+  const g={id:uid(),date:new Date().toISOString(),mode:ng.mode,event:ng.event.trim(),endsPlanned:Math.max(1,parseInt(ng.ends)||8),A:snap(A),B:B?snap(B):null,ends:[{n:1,hammer:ng.mode==='competition'?ng.hammer:null,shots:[]}],finished:false};
+  if(g.B&&g.B.color===g.A.color)g.B.color=COLORS.map(c=>c[1]).find(c=>c!==g.A.color);
+  db.games.push(g);db.currentId=g.id;save();resetShot();go('game');
+}
+
+/* --- Partie en cours --- */
+function headerHTML(g){
+  const e=lastEnd(g),t=totals(g);
+  if(g.mode==='competition')return `<div class="board">
+<div class="tm"><i class="dot" style="background:${g.A.color}"></i><span>${esc(g.A.name)}${e.hammer==='A'?'<br><em>marteau</em>':''}</span></div>
+<b>${t.A}</b><div class="mid">Bout ${e.n}<small>sur ${g.endsPlanned}</small></div><b>${t.B}</b>
+<div class="tm r"><i class="dot" style="background:${g.B.color}"></i><span>${esc(g.B.name)}${e.hammer==='B'?'<br><em>marteau</em>':''}</span></div></div>`;
+  return `<div class="board train"><div class="tm"><i class="dot" style="background:${g.A.color}"></i><span>${esc(g.A.name)}</span></div><div class="mid">Entraînement<small>bout ${e.n}</small></div></div>`;
+}
+function renderGame(){
+  const g=curGame();if(!g)return go('home');
+  if(!ui.stones)resetShot();
+  app.innerHTML=`<div class="top"><button class="link" data-act="go" data-v="home">‹ Accueil</button><span></span><button class="link r" data-act="menu">Options</button></div>
+${headerHTML(g)}
+<div class="sheet-wrap"><svg id="sheet" viewBox="${VIEWS[view]}" preserveAspectRatio="xMidYMid meet" aria-label="Piste de curling">${sheetBase()}<g id="dyn"></g></svg>${viewToggle()}</div>
+<div id="panel"></div>`;
+  bindSheet($('#sheet'));drawDyn();renderPanel();
+}
+function drawDyn(){
+  const g=curGame();if(!g)return;let h='';
+  for(const s of ui.stones)h+=stoneSVG(s,colorOf(g,s.team),{thrown:s.id===ui.thrownId,selected:s.id===ui.selected});
+  if(ui.target&&shotMode()){const th=ui.stones.find(s=>s.id===ui.thrownId);if(th)h+=lineSVG(ui.target,th);h+=targetSVG(ui.target)}
+  const d=$('#dyn');if(d)d.innerHTML=h;
+}
+function renderPanel(){
+  const g=curGame(),el=$('#panel');if(!g||!el)return;const e=lastEnd(g);let h='';
+  if(ui.menu)h+=`<div class="menu"><button data-act="undo">Annuler le dernier lancer</button>${!e.score?`<button data-act="endNow">Terminer le bout maintenant</button>`:''}<button class="danger" data-act="finishGame">Terminer la partie</button></div>`;
+  if(e.score)h+=finalPanel(g);
+  else if(!shotMode())h+=endPanel(g,e);
+  else h+=shotPanel(g,e);
+  el.innerHTML=h;
+}
+function shotPanel(g,e){
+  const max=maxStones(g),ps=g[ui.team].players,running=chrono.t0!=null;
+  const st=['cible','arret','ajuster'],cur=st.indexOf(ui.step);
+  const hints={cible:'Touchez la cible demandée par le skip.'+(g.mode!=='competition'?' Pour pratiquer une sortie, placez d’abord une pierre d’exercice.':''),
+    arret:'Touchez l’endroit où la pierre lancée s’est arrêtée.',
+    ajuster:'Glissez les pierres qui ont bougé. Sortez une pierre de la piste pour la retirer du jeu. Touchez une pierre pour la sélectionner.'};
+  let hint=hints[ui.step];if(ui.practice)hint='Touchez la glace pour placer la pierre d’exercice.';
+  let actions='';
+  if(ui.step==='cible')actions=`<div class="row"><button class="btn c" data-act="noTarget">Sans cible</button>${g.mode!=='competition'?`<button class="btn c" data-act="practice">${ui.practice?'Annuler':'Pierre d’exercice'}</button>`:''}</div>`;
+  if(ui.step==='arret')actions=`<div class="row"><button class="btn c" data-act="out">Hors jeu</button><button class="btn c" data-act="retarget">Changer la cible</button></div>`;
+  if(ui.step==='ajuster')actions=`<div class="stack">${ui.selected?`<button class="btn c danger" data-act="removeSel">Retirer la pierre sélectionnée</button>`:''}<div class="row"><button class="btn c" data-act="redo">Recommencer</button><button class="btn primary" data-act="validate">Valider le lancer</button></div></div>`;
+  return `<div class="who"><i class="dot" style="background:${g[ui.team].color}"></i><span class="num">Pierre ${e.shots.length+1} de ${max}</span>
+<select data-ch="thrower" aria-label="Lanceur">${ps.map((p,i)=>`<option value="${p.id}" ${p.id===ui.playerId?'selected':''}>${esc(pName(p,i))}</option>`).join('')}</select></div>
+<div class="seg" role="group" aria-label="Type de lancer">${TYPES.map(([v,l])=>`<button data-act="type" data-v="${v}" class="${ui.type===v?'on':''}">${l}</button>`).join('')}</div>
+<div class="steps">${['Cible','Arrêt','Ajuster'].map((l,i)=>`<span class="${i===cur?'on':i<cur?'done':''}">${l}</span>`).join('')}</div>
+<p class="hint">${hint}</p>
+<div class="chrono"><button class="btn ${running?'run':''}" id="chronoBtn" data-act="chrono">${running?'Arrêter':'Chrono hog à hog'}</button><input data-in="hog" inputmode="decimal" value="${esc(ui.hog)}" placeholder="secondes" aria-label="Temps hog à hog en secondes"></div>
+${actions}`;
+}
+function endPanel(g,e){
+  const sc=endScore(g,e);let txt;
+  if(g.mode==='competition')txt=sc.pts?`<b>${esc(g[sc.team].name)}</b> marque ${sc.pts} point${sc.pts>1?'s':''}.`:'Bout nul, aucune pierre dans la maison.';
+  else txt=`${sc.inHouse} pierre${sc.inHouse>1?'s':''} dans la maison.`;
+  return `<div class="card"><h3>Fin du bout ${e.n}</h3><p>${txt}</p><p class="muted small">Vérifiez la position des pierres sur la piste avant de confirmer.</p>
+<button class="btn primary" data-act="confirmEnd">${g.ends.length<g.endsPlanned?`Confirmer et passer au bout ${e.n+1}`:'Confirmer le bout'}</button>
+${ui.forceEnd?`<button class="btn c" data-act="resume">Continuer le bout</button>`:`<button class="btn c" data-act="undo">Annuler le dernier lancer</button>`}</div>`;
+}
+function finalPanel(g){
+  const t=totals(g);
+  return `<div class="card"><h3>Tous les bouts sont joués</h3>${g.mode==='competition'?`<p>${esc(g.A.name)} ${t.A}, ${esc(g.B.name)} ${t.B}</p>`:''}
+<button class="btn primary" data-act="finishGame">Terminer la partie</button><button class="btn c" data-act="extraEnd">Jouer un bout supplémentaire</button><button class="btn c" data-act="undo">Annuler le dernier lancer</button></div>`;
+}
+function bindSheet(svg){
+  svg.addEventListener('pointerdown',e=>{
+    if(!shotMode())return;
+    e.preventDefault();const p=svgPt(svg,e);const pt={x:r1(p.x),y:r1(p.y)};
+    if(ui.step==='cible'){
+      if(ui.practice){const s={id:'x'+uid(),team:'X',...pt};if(!inPlay(s))return toast('Placez la pierre sur la glace');ui.stones.push(s);ui.before.push(clone(s));ui.practice=false;drawDyn();renderPanel();return}
+      ui.target=pt;ui.step='arret';drawDyn();renderPanel();return;
+    }
+    if(ui.step==='arret'){
+      const s={id:'t'+uid(),team:ui.team,...pt};
+      if(inPlay(s)){ui.stones.push(s);ui.thrownId=s.id}else toast('Pierre hors jeu');
+      ui.step='ajuster';drawDyn();renderPanel();return;
+    }
+    if(ui.step==='ajuster'){
+      let best=null,bd=R*1.8;for(const s of ui.stones){const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<bd){bd=d;best=s}}
+      if(best){drag={id:best.id,dx:best.x-p.x,dy:best.y-p.y,sx:p.x,sy:p.y,moved:false};svg.setPointerCapture(e.pointerId)}
+      else if(ui.selected){ui.selected=null;drawDyn();renderPanel()}
+    }
+  });
+  svg.addEventListener('pointermove',e=>{
+    if(!drag)return;const p=svgPt(svg,e);const s=ui.stones.find(x=>x.id===drag.id);if(!s)return;
+    if(Math.hypot(p.x-drag.sx,p.y-drag.sy)>4)drag.moved=true;
+    if(drag.moved){s.x=r1(p.x+drag.dx);s.y=r1(p.y+drag.dy);drawDyn()}
+  });
+  const end=()=>{
+    if(!drag)return;const s=ui.stones.find(x=>x.id===drag.id);
+    if(s){if(drag.moved){if(!inPlay(s)){ui.stones=ui.stones.filter(x=>x.id!==s.id);if(ui.selected===s.id)ui.selected=null;toast('Pierre retirée du jeu')}}
+      else ui.selected=ui.selected===s.id?null:s.id}
+    drag=null;drawDyn();renderPanel();
+  };
+  svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
+}
+function validateShot(){
+  const g=curGame(),e=lastEnd(g);
+  const th=ui.stones.find(s=>s.id===ui.thrownId)||null;
+  const after=clone(ui.stones),before=clone(ui.before);
+  const {removed,moved}=diff(before,after);
+  const pi=g[ui.team].players.findIndex(p=>p.id===ui.playerId);const p=g[ui.team].players[pi]||{id:null,name:''};
+  const final=th?{x:th.x,y:th.y}:null;
+  const ecart=ui.target&&final&&ui.type!=='sortie'?Math.round(Math.hypot(final.x-ui.target.x,final.y-ui.target.y)):null;
+  e.shots.push({n:e.shots.length+1,team:ui.team,playerId:p.id,playerName:pName(p,Math.max(pi,0)),type:ui.type,target:ui.target,hogTime:parseNum(ui.hog),final,before,after,removed,moved,ecart,release:releaseOf(p),t:Date.now()});
+  save();const msg=resultText(e.shots[e.shots.length-1],g);resetShot();renderGame();if(msg)toast(msg);
+}
+function undo(){
+  const g=curGame();let e=lastEnd(g);
+  if(e.score)delete e.score;
+  else if(!e.shots.length&&g.ends.length>1){g.ends.pop();e=lastEnd(g);delete e.score}
+  else if(e.shots.length)e.shots.pop();
+  else return toast('Aucun lancer à annuler');
+  save();resetShot();renderGame();toast('Dernier lancer annulé');
+}
+function finishGame(){
+  const g=curGame();if(!g)return;const e=lastEnd(g);
+  if(!confirm('Terminer et sauvegarder cette partie ?'))return;
+  if(!e.score&&e.shots.length)e.score=endScore(g,e);
+  if(!e.shots.length&&g.ends.length>1)g.ends.pop();
+  g.finished=true;db.currentId=null;save();stopChrono();ui={};go('replay',g.id);
+}
+
+/* --- Historique --- */
+function renderHistory(){
+  const games=[...db.games].sort((a,b)=>b.date.localeCompare(a.date));
+  app.innerHTML=`${topBar('Historique','home')}
+<div class="stack">${games.length?games.map(g=>{const t=totals(g);return `<button class="btn" data-act="openGame" data-v="${g.id}"><span style="display:flex;align-items:center;gap:8px"><i class="dot" style="background:${g.A.color}"></i>${esc(g.A.name)}${g.B?` ${t.A} – ${t.B} ${esc(g.B.name)}`:', entraînement'}</span><small>${fmtDate(g.date)}${g.event?', '+esc(g.event):''}${!g.finished?', en cours':''}</small></button>`}).join(''):'<div class="empty">Aucune partie pour l’instant. Les parties apparaissent ici dès le premier lancer.</div>'}</div>
+<h3>Données</h3><p class="muted small">Exportez tout pour faire une copie de sécurité ou pour transférer les données vers un autre téléphone.</p>
+<div class="stack"><button class="btn c" data-act="exportAll">Exporter toutes les données (JSON)</button><button class="btn c" data-act="importData">Importer des données</button></div>
+<input type="file" id="imp" accept="application/json,.json" hidden data-ch="import">`;
+}
+function renderReplay(){
+  const g=db.games.find(x=>x.id===rp.id);if(!g)return go('history');
+  const e=g.ends[rp.end]||g.ends[0];const n=e.shots.length;if(rp.k==null||rp.k>n)rp.k=n;
+  const comp=g.mode==='competition',t=totals(g);
+  const scoreTable=comp?`<div class="tablewrap" style="margin-top:12px"><table><tr><th>Équipe</th>${g.ends.map(x=>`<th>${x.n}</th>`).join('')}<th>Total</th></tr>
+${['A','B'].map(k=>`<tr><td><i class="dot" style="background:${g[k].color};vertical-align:-2px;margin-right:6px"></i>${esc(g[k].name)}</td>${g.ends.map(x=>`<td>${x.score?(x.score.team===k?x.score.pts:0):''}</td>`).join('')}<td><b>${t[k]}</b></td></tr>`).join('')}</table></div>`:'';
+  const S=stats(g);
+  app.innerHTML=`${topBar(comp?'Partie':'Entraînement','history')}
+<p class="muted" style="text-align:center">${esc(g.A.name)}${g.B?' contre '+esc(g.B.name):''}, ${fmtDate(g.date)}${g.event?', '+esc(g.event):''}</p>
+${!g.finished?`<div style="margin:10px 0"><button class="btn primary" data-act="resumeGame">Reprendre cette partie</button></div>`:''}
+${scoreTable}
+<h3>Revoir un bout</h3>
+<div class="seg scroll">${g.ends.map((x,i)=>`<button data-act="rpEnd" data-v="${i}" class="${i===rp.end?'on':''}">Bout ${x.n}</button>`).join('')}</div>
+<div class="sheet-wrap"><svg viewBox="${VIEWS[view]}" preserveAspectRatio="xMidYMid meet" aria-label="Piste de curling">${sheetBase()}<g id="rpdyn"></g></svg>${viewToggle()}</div>
+<input type="range" min="0" max="${n}" value="${rp.k}" data-in="rpK" aria-label="Lancer affiché">
+<div class="info" id="rpInfo"></div>
+${n?`<ol class="shots">${e.shots.map((s,i)=>`<li data-act="rpGo" data-v="${i+1}" class="${i+1===rp.k?'on':''}"><span class="n">${s.n}</span><i class="dot" style="background:${colorOf(g,s.team)}"></i><div><b>${esc(s.playerName)}</b>, ${TYPES.find(x=>x[0]===s.type)[1].toLowerCase()}${s.hogTime!=null?`, ${fr(s.hogTime,2)} s`:''}${s.ecart!=null?`, écart ${s.ecart} cm`:''}<div class="muted small">${resultText(s,g)||'Aucune autre pierre touchée'}</div></div></li>`).join('')}</ol>`:''}
+<h3>Statistiques de la partie</h3>
+${S.length?`<div class="tablewrap"><table><tr><th>Joueur</th><th>Lancers</th><th>Écart moyen</th><th>Hog à hog</th><th>Sorties</th></tr>
+${S.map(r=>`<tr><td><i class="dot" style="background:${colorOf(g,r.team)};vertical-align:-2px;margin-right:6px"></i>${esc(r.name)}</td><td>${r.n}</td><td>${r.ec.length?Math.round(avg(r.ec))+' cm':'–'}</td><td>${r.hog.length?fr(avg(r.hog),2)+' s':'–'}</td><td>${r.st?`${r.so} sur ${r.st}`:'–'}</td></tr>`).join('')}</table></div>
+<p class="muted small">L’écart moyen compare la cible demandée et la position finale, pour les placements et les gardes.</p>`:'<div class="empty">Aucun lancer noté dans cette partie.</div>'}
+<div class="stack" style="margin-top:18px"><button class="btn c" data-act="exportCsv">Exporter cette partie (CSV)</button><button class="btn danger c" data-act="delGame">Supprimer la partie</button></div>`;
+  drawReplay();
+}
+function drawReplay(){
+  const g=db.games.find(x=>x.id===rp.id),e=g.ends[rp.end]||g.ends[0],k=rp.k;
+  const s=k>0?e.shots[k-1]:null;const stones=s?s.after:(e.shots[0]?e.shots[0].before:[]);
+  const thrownId=s&&s.final?(s.after.find(x=>x.x===s.final.x&&x.y===s.final.y)||{}).id:null;
+  let h=stones.map(x=>stoneSVG(x,colorOf(g,x.team),{thrown:x.id===thrownId})).join('');
+  if(s&&s.target){if(s.final)h+=lineSVG(s.target,s.final);h+=targetSVG(s.target)}
+  $('#rpdyn').innerHTML=h;
+  const info=$('#rpInfo');
+  if(!s)info.innerHTML=`<b>Début du bout ${e.n}</b><p class="muted small">Glissez le curseur ou touchez un lancer pour le revoir.</p>`;
+  else{const sc=k===e.shots.length&&e.score;info.innerHTML=`<b>Pierre ${s.n} : ${esc(s.playerName)}</b><p class="small">${TYPES.find(x=>x[0]===s.type)[1]}${s.hogTime!=null?`, hog à hog ${fr(s.hogTime,2)} s`:''}${s.ecart!=null?`, écart de ${s.ecart} cm avec la cible`:''}${!s.target?', sans cible':''}</p><p class="muted small">${resultText(s,g)||'Aucune autre pierre touchée'}${sc&&g.mode==='competition'?`. Fin du bout : ${sc.pts?esc(g[sc.team].name)+' marque '+sc.pts:'bout nul'}`:''}</p>`}
+  document.querySelectorAll('ol.shots li').forEach(li=>li.classList.toggle('on',+li.dataset.v===k));
+}
+function stats(g){
+  const m=new Map();
+  for(const e of g.ends)for(const s of e.shots){const key=s.team+'|'+s.playerId+'|'+s.playerName;let r=m.get(key);
+    if(!r){r={team:s.team,name:s.playerName,n:0,ec:[],hog:[],st:0,so:0};m.set(key,r)}
+    r.n++;if(s.ecart!=null)r.ec.push(s.ecart);if(s.hogTime!=null)r.hog.push(s.hogTime);if(s.type==='sortie'){r.st++;if(sortieOk(s))r.so++}}
+  return[...m.values()].sort((a,b)=>a.team.localeCompare(b.team));
+}
+
+/* --- Export / import --- */
+async function shareFile(name,text,mime){
+  const blob=new Blob([text],{type:mime});
+  try{const file=new File([blob],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return}}catch(err){if(err&&err.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+}
+function csvOf(g){
+  const head=['date','mode','evenement','equipe_A','equipe_B','bout','marteau','pierre','equipe','joueur','type','cible_x_cm','cible_y_cm','final_x_cm','final_y_cm','ecart_cm','hog_a_hog_s','hors_jeu','pierres_sorties_adverses','pierres_sorties_equipe','pierres_deplacees','depart_dist_hog_cm','depart_decalage_cm'];
+  const q=v=>{if(v==null)return'';if(typeof v==='number')return String(v).replace('.',',');const s=String(v);return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+  const rows=[head.join(';')];
+  for(const e of g.ends)for(const s of e.shots){
+    rows.push([g.date.slice(0,10),g.mode,g.event,g.A.name,g.B?g.B.name:'',e.n,e.hammer?g[e.hammer].name:'',s.n,g[s.team]?g[s.team].name:s.team,s.playerName,s.type,
+      s.target?.x,s.target?.y,s.final?.x,s.final?.y,s.ecart,s.hogTime,s.final?'non':'oui',
+      s.removed.filter(t=>t!==s.team).length,s.removed.filter(t=>t===s.team).length,s.moved.length,s.release?.dist,s.release?.offset].map(q).join(';'));
+  }
+  return '\ufeff'+rows.join('\n');
+}
+function importData(file){
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.games)||!Array.isArray(d.teams))throw 0;
+    let nT=0,nG=0;for(const t of d.teams)if(!db.teams.find(x=>x.id===t.id)){db.teams.push(t);nT++}
+    for(const g of d.games)if(!db.games.find(x=>x.id===g.id)){db.games.push({...g,finished:true});nG++}
+    save();render();toast(`${nG} partie${nG>1?'s':''} et ${nT} équipe${nT>1?'s':''} importées`)}
+    catch(e){toast('Ce fichier n’est pas une exportation de Suivi curling')}};
+  r.readAsText(file);
+}
+
+/* ---------- Actions ---------- */
+const ACT={
+  go:v=>{if(v==='new')ng={mode:'competition',teamId:null,oppId:'',oppName:'',ends:'8',hammer:'A',event:''};go(v)},
+  view:v=>{view=v;screen==='game'?renderGame():renderReplay()},
+  newTeam:()=>{edit={id:uid(),isNew:true,name:'',color:COLORS[0][1],adversaire:false,players:[0,1,2,3].map(()=>blankPlayer())};go('team')},
+  editTeam:v=>{const t=db.teams.find(x=>x.id===v);if(!t)return;edit={...clone(t),isNew:false};go('team')},
+  color:v=>{edit.color=v;renderTeamEdit()},
+  advToggle:(v,el)=>{edit.adversaire=el.checked},
+  addPlayer:()=>{edit.players.push(blankPlayer());renderTeamEdit()},
+  delPlayer:v=>{edit.players.splice(+v,1);renderTeamEdit()},
+  pstart:v=>{const[i,s]=v.split(':');const p=edit.players[+i];p.start=s;if(s==='custom'&&(p.dist===''||p.dist==null))p.dist='';renderTeamEdit()},
+  saveTeam:()=>{
+    if(!edit.name.trim())return toast('Donnez un nom à l’équipe');
+    const bad=edit.players.find(p=>p.start==='custom'&&parseNum(p.dist)==null);if(bad)return toast('Entrez la distance de la hog line pour chaque départ personnalisé');
+    const t={...edit};delete t.isNew;t.name=t.name.trim();
+    const i=db.teams.findIndex(x=>x.id===t.id);if(i>=0)db.teams[i]=t;else db.teams.push(t);save();toast('Équipe enregistrée');go('teams')},
+  delTeam:()=>{if(!confirm('Supprimer cette équipe ? Les parties déjà jouées sont conservées.'))return;db.teams=db.teams.filter(x=>x.id!==edit.id);save();go('teams')},
+  ngMode:v=>{ng.mode=v;renderNew()},
+  ngHammer:v=>{ng.hammer=v;renderNew()},
+  startGame:startGame,
+  type:v=>{ui.type=v;renderPanel()},
+  noTarget:()=>{ui.target=null;ui.practice=false;ui.step='arret';drawDyn();renderPanel()},
+  practice:()=>{ui.practice=!ui.practice;renderPanel()},
+  out:()=>{ui.thrownId=null;ui.step='ajuster';drawDyn();renderPanel()},
+  retarget:()=>{ui.target=null;ui.step='cible';drawDyn();renderPanel()},
+  removeSel:()=>{ui.stones=ui.stones.filter(s=>s.id!==ui.selected);ui.selected=null;drawDyn();renderPanel();toast('Pierre retirée du jeu')},
+  redo:()=>{ui.stones=clone(ui.before);ui.thrownId=null;ui.target=null;ui.selected=null;ui.step='cible';drawDyn();renderPanel()},
+  validate:validateShot,
+  chrono:toggleChrono,
+  menu:()=>{ui.menu=!ui.menu;renderPanel()},
+  undo:()=>{ui.menu=false;undo()},
+  endNow:()=>{ui.menu=false;ui.forceEnd=true;drawDyn();renderPanel()},
+  resume:()=>{ui.forceEnd=false;drawDyn();renderPanel()},
+  confirmEnd:()=>{const g=curGame(),e=lastEnd(g);e.score=endScore(g,e);if(g.ends.length<g.endsPlanned)newEnd(g);save();resetShot();renderGame()},
+  extraEnd:()=>{const g=curGame();g.endsPlanned=g.ends.length+1;newEnd(g);save();resetShot();renderGame()},
+  finishGame:()=>{ui.menu=false;finishGame()},
+  openGame:v=>go('replay',v),
+  resumeGame:()=>{db.currentId=rp.id;save();ui={};resetShot();go('game')},
+  rpEnd:v=>{rp.end=+v;rp.k=null;renderReplay()},
+  rpGo:v=>{rp.k=+v;$('input[data-in=rpK]').value=rp.k;drawReplay()},
+  exportCsv:()=>{const g=db.games.find(x=>x.id===rp.id);shareFile(`curling-${g.date.slice(0,10)}-${g.A.name.replace(/\W+/g,'-')}.csv`,csvOf(g),'text/csv')},
+  exportAll:()=>shareFile(`suivi-curling-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({app:'suivi-curling',version:1,exported:new Date().toISOString(),teams:db.teams,games:db.games},null,1),'application/json'),
+  importData:()=>$('#imp').click(),
+  delGame:()=>{if(!confirm('Supprimer définitivement cette partie ?'))return;db.games=db.games.filter(x=>x.id!==rp.id);if(db.currentId===rp.id)db.currentId=null;save();go('history')}
+};
+const IN={
+  tname:el=>edit.name=el.value,
+  pname:el=>edit.players[+el.dataset.i].name=el.value,
+  pdist:el=>edit.players[+el.dataset.i].dist=el.value,
+  poff:el=>edit.players[+el.dataset.i].offset=el.value,
+  ngOppName:el=>ng.oppName=el.value,
+  ngEnds:el=>ng.ends=el.value,
+  ngEvent:el=>ng.event=el.value,
+  hog:el=>ui.hog=el.value,
+  rpK:el=>{rp.k=+el.value;drawReplay()}
+};
+const CH={
+  ngTeam:el=>{ng.teamId=el.value;if(ng.oppId===el.value)ng.oppId='';renderNew()},
+  ngOpp:el=>{ng.oppId=el.value;renderNew()},
+  thrower:el=>{ui.playerId=el.value},
+  import:el=>{if(el.files[0])importData(el.files[0]);el.value=''}
+};
+app.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||!app.contains(b))return;const f=ACT[b.dataset.act];if(f)f(b.dataset.v,b,e)});
+app.addEventListener('input',e=>{const k=e.target.dataset.in;if(k&&IN[k])IN[k](e.target)});
+app.addEventListener('change',e=>{const k=e.target.dataset.ch;if(k&&CH[k])CH[k](e.target)});
+
+if(curGame())resetShot();
+render();
+</script>
+</body>
+</html>
