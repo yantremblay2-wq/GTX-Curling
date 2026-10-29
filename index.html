@@ -174,10 +174,13 @@ const HOUSE_FIT={x0:-238,x1:238,y0:-200,y1:250};
 const POS=['Premier','Deuxième','Troisième','Skip','Substitut'];
 const COLORS=[['Rouge','#C8343B'],['Jaune','#E8B923'],['Bleu','#2E6FB7'],['Vert','#2F8F5B'],['Noir','#2A2F35']];
 const TYPES=[['placement','Placement'],['garde','Garde'],['sortie','Take-out']];
-const typeLabel=t=>(TYPES.find(x=>x[0]===t)||[0,t])[1];
+const typeLabel=t=>t?(TYPES.find(x=>x[0]===t)||[0,t])[1]:'Lancer';
+const TURNS=[['in','In-turn'],['out','Out-turn']];
+const turnLabel=t=>(TURNS.find(x=>x[0]===t)||[0,''])[1];
+const ROT_METHOD={hog:'hog à hog',lacher:'du lâcher à l’arrêt'};
 const PRACTICE='#A7B0B7';
 const DB_KEY='suiviCurling.v1';
-const DEFAULT_SETTINGS={broom:true,want:true,chrono:true,note:true};
+const DEFAULT_SETTINGS={types:true,broom:true,want:true,chrono:true,note:true,rot:false,rotMethod:'hog'};
 
 /* ---------- Données ---------- */
 let db=load();
@@ -273,7 +276,7 @@ function resetShot(){
   stopChrono();
   const g=curGame();if(!g)return;const e=lastEnd(g);
   const nt=e.score?{team:'A',playerId:null}:nextThrow(g,e);
-  ui={step:stepsFor()[0],type:'placement',team:nt.team,playerId:nt.playerId,broom:null,want:null,hog:'',note:null,stones:currentStones(e),before:currentStones(e),thrownId:null,selected:null,practice:false,menu:false,forceEnd:false};
+  ui={step:stepsFor()[0],type:db.settings.types?'placement':null,turn:null,rot:null,team:nt.team,playerId:nt.playerId,broom:null,want:null,hog:'',note:null,stones:currentStones(e),before:currentStones(e),thrownId:null,selected:null,practice:false,menu:false,forceEnd:false};
 }
 function shotMode(){const g=curGame();if(!g)return false;const e=lastEnd(g);return !e.score&&!ui.forceEnd&&e.shots.length<maxStones(g)}
 function nextStep(){const a=stepsFor();ui.step=a[Math.min(a.indexOf(ui.step)+1,a.length-1)]}
@@ -323,11 +326,14 @@ function makeIce(svg,opt){
   function apply(){const{W,H}=size();if(!W||!H||!st.s)return;const w=W/st.s,h=H/st.s;svg.setAttribute('viewBox',`${r1(st.cx-w/2)} ${r1(st.cy-h/2)} ${r1(w)} ${r1(h)}`)}
   function fit(){
     const{W,H}=size();if(!W||!H)return;const ins=opt.insets?opt.insets():{t:0,b:0};const reg=opt.region;
-    const fh=Math.max(120,H-ins.t-ins.b),rw=reg.x1-reg.x0,rh=reg.y1-reg.y0;
-    st.s=Math.min(W/rw,fh/rh);st.cx=(reg.x0+reg.x1)/2;st.cy=(reg.y0+reg.y1)/2-((ins.t+fh/2)-H/2)/st.s;st.set=true;apply();
+    const fh=Math.max(120,H-ins.t-ins.b);
+    st.s=clampS(fitScale());st.cx=(reg.x0+reg.x1)/2;st.cy=(reg.y0+reg.y1)/2-((ins.t+fh/2)-H/2)/st.s;st.set=true;apply();
   }
   const world=(cx,cy)=>{const{W,H,r}=size();return{x:st.cx+(cx-r.left-W/2)/st.s,y:st.cy+(cy-r.top-H/2)/st.s}};
-  const clampS=s=>Math.min(14,Math.max(.12,s));
+  /* Zoom arrière : jamais plus loin que la largeur de la glace */
+  function fitScale(){const{W,H}=size();const ins=opt.insets?opt.insets():{t:0,b:0};const reg=opt.region;
+    const fh=Math.max(120,H-ins.t-ins.b);return Math.min(W/(reg.x1-reg.x0),fh/(reg.y1-reg.y0))}
+  const clampS=s=>{const{W}=size();return Math.min(14,Math.max(W/(2*W2+1),s))};
   svg.addEventListener('pointerdown',e=>{
     e.preventDefault();try{svg.setPointerCapture(e.pointerId)}catch(_){}
     ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -400,7 +406,10 @@ ${sw('broom','Brosse du skip','La ligne indiquée par le skip')}
 ${sw('want','Position voulue','Où la pierre devait s’arrêter')}
 ${sw('chrono','Chrono hog à hog','Le temps de la pierre entre les deux hog lines')}
 ${sw('note','Note de 0 à 4','La méthode officielle, avec un pourcentage par joueur')}
+${sw('types','Type de lancer','Choisir placement, garde ou take-out')}
+${sw('rot','Compter les rotations','Le sens (in-turn ou out-turn) et le nombre de tours')}
 </div>
+${s.rot?`<label class="f">Compter les tours</label><div class="seg"><button data-act="rotMethod" data-v="hog" class="${s.rotMethod==='hog'?'on':''}">Hog à hog</button><button data-act="rotMethod" data-v="lacher" class="${s.rotMethod==='lacher'?'on':''}">Du lâcher à l’arrêt</button></div>`:''}
 <p class="muted small" style="margin-top:10px">La position finale de la pierre est toujours notée. Les changements s’appliquent dès le prochain lancer.</p>`;
 }
 
@@ -549,11 +558,14 @@ function shotPanel(g,e){
   let actions='';
   if(ui.step==='brosse'||ui.step==='voulue')actions=`<div class="row">${back}<button class="btn c" data-act="skip">Passer</button>${practice}</div>`;
   if(ui.step==='arret')actions=`<div class="row">${back}<button class="btn c" data-act="out">Hors jeu</button>${practice}</div>`;
-  if(ui.step==='ajuster')actions=`${S.note?`<div class="notes" role="group" aria-label="Note du lancer"><span>Note</span>${[0,1,2,3,4].map(n=>`<button data-act="note" data-v="${n}" class="${ui.note===n?'on':''}">${n}</button>`).join('')}</div>`:''}
+  const half=ui.rot!=null&&ui.rot%1!==0,whole=ui.rot!=null?Math.floor(ui.rot):null;
+  const rotRow=S.rot?`<div class="notes" role="group" aria-label="Nombre de tours"><span>Tours</span>${[1,2,3,4,5,6].map(n=>`<button data-act="rot" data-v="${n}" class="${whole===n?'on':''}">${n}</button>`).join('')}<button data-act="rotHalf" class="${half?'on':''}" aria-label="Ajouter un demi-tour">+½</button></div>`:'';
+  if(ui.step==='ajuster')actions=`${rotRow}${S.note?`<div class="notes" role="group" aria-label="Note du lancer"><span>Note</span>${[0,1,2,3,4].map(n=>`<button data-act="note" data-v="${n}" class="${ui.note===n?'on':''}">${n}</button>`).join('')}</div>`:''}
 <div class="stack">${ui.selected?`<button class="btn c danger" data-act="removeSel">Retirer la pierre sélectionnée</button>`:''}<div class="row"><button class="btn c" data-act="redo">Recommencer</button><button class="btn primary" data-act="validate">Valider le lancer</button></div></div>`;
   return `<div class="who"><i class="dot" style="background:${g[ui.team].color}"></i><span class="num">Pierre ${e.shots.length+1} de ${max}</span>
 <select data-ch="thrower" aria-label="Lanceur">${ps.map((p,i)=>`<option value="${p.id}" ${p.id===ui.playerId?'selected':''}>${esc(pName(p,i))}</option>`).join('')}</select></div>
-<div class="seg" role="group" aria-label="Type de lancer">${TYPES.map(([v,l])=>`<button data-act="type" data-v="${v}" class="${ui.type===v?'on':''}">${l}</button>`).join('')}</div>
+${S.types?`<div class="seg" role="group" aria-label="Type de lancer">${TYPES.map(([v,l])=>`<button data-act="type" data-v="${v}" class="${ui.type===v?'on':''}">${l}</button>`).join('')}</div>`:''}
+${S.rot?`<div class="seg" role="group" aria-label="Sens de rotation" style="margin-top:6px">${TURNS.map(([v,l])=>`<button data-act="turn" data-v="${v}" class="${ui.turn===v?'on':''}">${l}</button>`).join('')}</div>`:''}
 <div class="steps">${steps.map((s,i)=>`<span class="${i===cur?'on':i<cur?'done':''}">${STEP_LABEL[s]}</span>`).join('')}</div>
 <p class="hint">${iconHTML}<span>${hint}</span></p>
 ${S.chrono?`<div class="chrono"><button class="btn ${running?'run':''}" id="chronoBtn" data-act="chrono">${running?'Arrêter':'Chrono hog à hog'}</button><input data-in="hog" inputmode="decimal" value="${esc(ui.hog)}" placeholder="secondes" aria-label="Temps hog à hog en secondes"></div>`:''}
@@ -581,6 +593,7 @@ const hitStone=(stones,p,list)=>{let best=null,bd=R*1.9;for(const s of list||sto
 let dragS=null;
 function gameTap(p){
   const g=curGame();if(!g)return;const e=lastEnd(g);
+  if(ui.menu){ui.menu=false;renderPanel();return}
   const pt={x:r1(p.x),y:r1(p.y)};
   if(!shotMode()){
     if(e.score||g.mode!=='competition')return;
@@ -597,6 +610,7 @@ function gameTap(p){
   drawDyn();renderPanel();
 }
 function gameDown(p){
+  if(ui.menu)return false;
   if(!shotMode()||ui.step!=='ajuster')return false;
   const s=hitStone(ui.stones,p);if(!s)return false;
   dragS={id:s.id,x:s.x,y:s.y,dx:s.x-p.x,dy:s.y-p.y};return true;
@@ -617,7 +631,7 @@ function validateShot(){
   const pi=g[ui.team].players.findIndex(p=>p.id===ui.playerId);const p=g[ui.team].players[pi]||{id:null,name:''};
   const final=th?{x:th.x,y:th.y}:null;
   const ecart=ui.want&&final&&ui.type!=='sortie'?Math.round(Math.hypot(final.x-ui.want.x,final.y-ui.want.y)):null;
-  e.shots.push({n:e.shots.length+1,team:ui.team,playerId:p.id,playerName:pName(p,Math.max(pi,0)),type:ui.type,broom:ui.broom,target:ui.want,hogTime:parseNum(ui.hog),note:ui.note,final,before,after,removed,moved,ecart,release:releaseOf(p),t:Date.now()});
+  e.shots.push({n:e.shots.length+1,team:ui.team,playerId:p.id,playerName:pName(p,Math.max(pi,0)),type:ui.type,broom:ui.broom,target:ui.want,hogTime:parseNum(ui.hog),note:ui.note,turn:db.settings.rot?ui.turn:null,rot:db.settings.rot?ui.rot:null,rotMethod:db.settings.rot&&ui.rot!=null?db.settings.rotMethod:null,final,before,after,removed,moved,ecart,release:releaseOf(p),t:Date.now()});
   save();const msg=resultText(e.shots[e.shots.length-1],g);resetShot();renderGame();if(msg)toast(msg);
 }
 function undo(){
@@ -651,7 +665,7 @@ function renderReplay(){
   const comp=g.mode==='competition',t=totals(g);
   const scoreTable=comp?`<div class="tablewrap" style="margin-top:12px"><table><tr><th>Équipe</th>${g.ends.map(x=>`<th>${x.n}</th>`).join('')}<th>Total</th></tr>
 ${['A','B'].map(k=>`<tr><td><i class="dot" style="background:${g[k].color};vertical-align:-2px;margin-right:6px"></i>${esc(g[k].name)}</td>${g.ends.map(x=>`<td>${x.score?(x.score.team===k?x.score.pts:0):''}</td>`).join('')}<td><b>${t[k]}</b></td></tr>`).join('')}</table></div>`:'';
-  const S=stats(g),hasNote=S.some(r=>r.notes.length),hasHog=S.some(r=>r.hog.length),hasEc=S.some(r=>r.ec.length);
+  const S=stats(g),hasNote=S.some(r=>r.notes.length),hasHog=S.some(r=>r.hog.length),hasEc=S.some(r=>r.ec.length),hasRot=S.some(r=>r.rots.length),hasTO=S.some(r=>r.st);
   app.innerHTML=`${topBar(comp?'Partie':'Entraînement','history')}
 <p class="muted" style="text-align:center">${esc(g.A.name)}${g.B?' contre '+esc(g.B.name):''}, ${fmtDate(g.date)}${g.event?', '+esc(g.event):''}</p>
 ${!g.finished?`<div style="margin:10px 0"><button class="btn primary" data-act="resumeGame">Reprendre cette partie</button></div>`:''}
@@ -662,11 +676,11 @@ ${scoreTable}
 <div class="legend"><span>${iconSVG(BROOM_ICON)}Brosse du skip</span><span>${iconSVG(WANT_ICON,'-20 -20 40 40')}Position voulue</span><span>${iconSVG(stoneSVG({x:0,y:0},'#C8343B',{thrown:true}),'-20 -20 40 40')}Pierre lancée</span></div>
 <input type="range" min="0" max="${n}" value="${rp.k}" data-in="rpK" aria-label="Lancer affiché">
 <div class="info" id="rpInfo"></div>
-${n?`<ol class="shots">${e.shots.map((s,i)=>`<li data-act="rpGo" data-v="${i+1}" class="${i+1===rp.k?'on':''}"><span class="n">${s.n}</span><i class="dot" style="background:${colorOf(g,s.team)}"></i><div><b>${esc(s.playerName)}</b>, ${typeLabel(s.type).toLowerCase()}${s.note!=null?`, note ${s.note}`:''}${s.hogTime!=null?`, ${fr(s.hogTime,2)} s`:''}${s.ecart!=null?`, écart ${s.ecart} cm`:''}<div class="muted small">${resultText(s,g)||'Aucune autre pierre touchée'}</div></div></li>`).join('')}</ol>`:''}
+${n?`<ol class="shots">${e.shots.map((s,i)=>`<li data-act="rpGo" data-v="${i+1}" class="${i+1===rp.k?'on':''}"><span class="n">${s.n}</span><i class="dot" style="background:${colorOf(g,s.team)}"></i><div><b>${esc(s.playerName)}</b>, ${typeLabel(s.type).toLowerCase()}${s.turn?`, ${turnLabel(s.turn).toLowerCase()}`:''}${s.rot!=null?`, ${fr(s.rot,s.rot%1?1:0)} tours`:''}${s.note!=null?`, note ${s.note}`:''}${s.hogTime!=null?`, ${fr(s.hogTime,2)} s`:''}${s.ecart!=null?`, écart ${s.ecart} cm`:''}<div class="muted small">${resultText(s,g)||'Aucune autre pierre touchée'}</div></div></li>`).join('')}</ol>`:''}
 <h3>Statistiques de la partie</h3>
-${S.length?`<div class="tablewrap"><table><tr><th>Joueur</th><th>Lancers</th>${hasNote?'<th>Pourcentage</th>':''}${hasEc?'<th>Écart moyen</th>':''}${hasHog?'<th>Hog à hog</th>':''}<th>Take-outs</th></tr>
-${S.map(r=>`<tr><td><i class="dot" style="background:${colorOf(g,r.team)};vertical-align:-2px;margin-right:6px"></i>${esc(r.name)}</td><td>${r.n}</td>${hasNote?`<td>${r.notes.length?Math.round(avg(r.notes)/4*100)+' %':'–'}</td>`:''}${hasEc?`<td>${r.ec.length?Math.round(avg(r.ec))+' cm':'–'}</td>`:''}${hasHog?`<td>${r.hog.length?fr(avg(r.hog),2)+' s':'–'}</td>`:''}<td>${r.st?`${r.so} sur ${r.st}`:'–'}</td></tr>`).join('')}</table></div>
-<p class="muted small">Le pourcentage suit la méthode officielle : la somme des notes divisée par 4 fois le nombre de lancers notés. L’écart moyen compare la position voulue et la position finale, pour les placements et les gardes.</p>`:'<div class="empty">Aucun lancer noté dans cette partie.</div>'}
+${S.length?`<div class="tablewrap"><table><tr><th>Joueur</th><th>Lancers</th>${hasNote?'<th>Pourcentage</th>':''}${hasEc?'<th>Écart moyen</th>':''}${hasHog?'<th>Hog à hog</th>':''}${hasRot?'<th>Tours</th>':''}${hasTO?'<th>Take-outs</th>':''}</tr>
+${S.map(r=>`<tr><td><i class="dot" style="background:${colorOf(g,r.team)};vertical-align:-2px;margin-right:6px"></i>${esc(r.name)}</td><td>${r.n}</td>${hasNote?`<td>${r.notes.length?Math.round(avg(r.notes)/4*100)+' %':'–'}</td>`:''}${hasEc?`<td>${r.ec.length?Math.round(avg(r.ec))+' cm':'–'}</td>`:''}${hasHog?`<td>${r.hog.length?fr(avg(r.hog),2)+' s':'–'}</td>`:''}${hasRot?`<td>${r.rots.length?fr(avg(r.rots),1):'–'}</td>`:''}${hasTO?`<td>${r.st?`${r.so} sur ${r.st}`:'–'}</td>`:''}</tr>`).join('')}</table></div>
+<p class="muted small">Le pourcentage suit la méthode officielle : la somme des notes divisée par 4 fois le nombre de lancers notés. L’écart moyen compare la position voulue et la position finale, sauf pour les take-outs.</p>`:'<div class="empty">Aucun lancer noté dans cette partie.</div>'}
 <div class="stack" style="margin-top:18px"><button class="btn c" data-act="exportCsv">Exporter cette partie (CSV)</button><button class="btn danger c" data-act="delGame">Supprimer la partie</button></div>`;
   ice=makeIce($('#rpice'),{cam:rpCam,region:HOUSE_FIT,pan:()=>true});
   drawReplay();
@@ -686,14 +700,14 @@ function drawReplay(){
   $('#rpdyn').innerHTML=h;
   const info=$('#rpInfo');
   if(!s)info.innerHTML=`<b>Début du bout ${e.n}</b><p class="muted small">Glissez le curseur ou touchez un lancer pour le revoir. Deux doigts pour zoomer sur la glace.</p>`;
-  else{const sc=k===e.shots.length&&e.score;info.innerHTML=`<b>Pierre ${s.n} : ${esc(s.playerName)}</b><p class="small">${typeLabel(s.type)}${s.note!=null?`, note ${s.note} sur 4`:''}${s.hogTime!=null?`, hog à hog ${fr(s.hogTime,2)} s`:''}${s.ecart!=null?`, écart de ${s.ecart} cm avec la position voulue`:''}</p><p class="muted small">${resultText(s,g)||'Aucune autre pierre touchée'}${sc&&g.mode==='competition'?`. Fin du bout : ${sc.pts?esc(g[sc.team].name)+' marque '+sc.pts:'bout nul'}`:''}</p>`}
+  else{const sc=k===e.shots.length&&e.score;info.innerHTML=`<b>Pierre ${s.n} : ${esc(s.playerName)}</b><p class="small">${typeLabel(s.type)}${s.turn?`, ${turnLabel(s.turn).toLowerCase()}`:''}${s.rot!=null?`, ${fr(s.rot,s.rot%1?1:0)} tours (${ROT_METHOD[s.rotMethod]||'hog à hog'})`:''}${s.note!=null?`, note ${s.note} sur 4`:''}${s.hogTime!=null?`, hog à hog ${fr(s.hogTime,2)} s`:''}${s.ecart!=null?`, écart de ${s.ecart} cm avec la position voulue`:''}</p><p class="muted small">${resultText(s,g)||'Aucune autre pierre touchée'}${sc&&g.mode==='competition'?`. Fin du bout : ${sc.pts?esc(g[sc.team].name)+' marque '+sc.pts:'bout nul'}`:''}</p>`}
   document.querySelectorAll('ol.shots li').forEach(li=>li.classList.toggle('on',+li.dataset.v===k));
 }
 function stats(g){
   const m=new Map();
   for(const e of g.ends)for(const s of e.shots){const key=s.team+'|'+s.playerId+'|'+s.playerName;let r=m.get(key);
-    if(!r){r={team:s.team,name:s.playerName,n:0,ec:[],hog:[],notes:[],st:0,so:0};m.set(key,r)}
-    r.n++;if(s.ecart!=null)r.ec.push(s.ecart);if(s.hogTime!=null)r.hog.push(s.hogTime);if(s.note!=null)r.notes.push(s.note);
+    if(!r){r={team:s.team,name:s.playerName,n:0,ec:[],hog:[],notes:[],rots:[],st:0,so:0};m.set(key,r)}
+    r.n++;if(s.ecart!=null)r.ec.push(s.ecart);if(s.hogTime!=null)r.hog.push(s.hogTime);if(s.note!=null)r.notes.push(s.note);if(s.rot!=null)r.rots.push(s.rot);
     if(s.type==='sortie'){r.st++;if(sortieOk(s))r.so++}}
   return[...m.values()].sort((a,b)=>a.team.localeCompare(b.team));
 }
@@ -705,12 +719,12 @@ async function shareFile(name,text,mime){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
 }
 function csvOf(g){
-  const head=['date','mode','evenement','equipe_A','equipe_B','bout','marteau','pierre','equipe','joueur','type','brosse_x_cm','brosse_y_cm','voulue_x_cm','voulue_y_cm','final_x_cm','final_y_cm','ecart_cm','note_0_4','hog_a_hog_s','hors_jeu','pierres_sorties_adverses','pierres_sorties_equipe','pierres_deplacees','depart_dist_hog_cm','depart_decalage_cm'];
+  const head=['date','mode','evenement','equipe_A','equipe_B','bout','marteau','pierre','equipe','joueur','type','brosse_x_cm','brosse_y_cm','voulue_x_cm','voulue_y_cm','final_x_cm','final_y_cm','ecart_cm','note_0_4','sens','rotations','methode_rotations','hog_a_hog_s','hors_jeu','pierres_sorties_adverses','pierres_sorties_equipe','pierres_deplacees','depart_dist_hog_cm','depart_decalage_cm'];
   const q=v=>{if(v==null)return'';if(typeof v==='number')return String(v).replace('.',',');const s=String(v);return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
   const rows=[head.join(';')];
   for(const e of g.ends)for(const s of e.shots){
-    rows.push([g.date.slice(0,10),g.mode,g.event,g.A.name,g.B?g.B.name:'',e.n,e.hammer?g[e.hammer].name:'',s.n,g[s.team]?g[s.team].name:s.team,s.playerName,typeLabel(s.type),
-      s.broom?.x,s.broom?.y,s.target?.x,s.target?.y,s.final?.x,s.final?.y,s.ecart,s.note,s.hogTime,s.final?'non':'oui',
+    rows.push([g.date.slice(0,10),g.mode,g.event,g.A.name,g.B?g.B.name:'',e.n,e.hammer?g[e.hammer].name:'',s.n,g[s.team]?g[s.team].name:s.team,s.playerName,s.type?typeLabel(s.type):'',
+      s.broom?.x,s.broom?.y,s.target?.x,s.target?.y,s.final?.x,s.final?.y,s.ecart,s.note,turnLabel(s.turn),s.rot,s.rotMethod?ROT_METHOD[s.rotMethod]:'',s.hogTime,s.final?'non':'oui',
       s.removed.filter(t=>t!==s.team).length,s.removed.filter(t=>t===s.team).length,s.moved.length,s.release?.dist,s.release?.offset].map(q).join(';'));
   }
   return '﻿'+rows.join('\n');
@@ -728,6 +742,7 @@ function importData(file){
 /* ---------- Actions ---------- */
 const ACT={
   go:v=>{if(v==='new')ng={mode:'competition',teamId:null,oppId:'',oppName:'',ends:'8',hammer:'A',event:''};go(v)},
+  rotMethod:v=>{db.settings.rotMethod=v;save();renderSettings()},
   openSettings:v=>{settingsBack=v||'home';ui.menu=false;go('settings')},
   refit:()=>{if(ice)ice.fit()},
   newTeam:()=>{edit={id:uid(),isNew:true,name:'',color:COLORS[0][1],adversaire:false,players:[0,1,2,3].map(()=>blankPlayer())};go('team')},
@@ -747,6 +762,9 @@ const ACT={
   ngHammer:v=>{ng.hammer=v;renderNew()},
   startGame:startGame,
   type:v=>{ui.type=v;renderPanel()},
+  turn:v=>{ui.turn=ui.turn===v?null:v;renderPanel()},
+  rot:v=>{const n=+v,cur=ui.rot;if(cur!=null&&Math.floor(cur)===n)ui.rot=null;else ui.rot=n+(cur!=null&&cur%1!==0?.5:0);renderPanel()},
+  rotHalf:()=>{if(ui.rot==null)return toast('Choisissez d’abord le nombre de tours');ui.rot=ui.rot%1!==0?Math.floor(ui.rot):Math.floor(ui.rot)+.5;renderPanel()},
   skip:()=>{if(ui.step==='brosse')ui.broom=null;if(ui.step==='voulue')ui.want=null;ui.practice=false;nextStep();drawDyn();renderPanel()},
   back:()=>{const a=stepsFor(),prev=a[a.indexOf(ui.step)-1];if(!prev)return;if(prev==='brosse')ui.broom=null;if(prev==='voulue')ui.want=null;ui.step=prev;drawDyn();renderPanel()},
   practice:()=>{ui.practice=!ui.practice;renderPanel()},
@@ -785,7 +803,7 @@ const CH={
   ngTeam:el=>{ng.teamId=el.value;if(ng.oppId===el.value)ng.oppId='';renderNew()},
   ngOpp:el=>{ng.oppId=el.value;renderNew()},
   thrower:el=>{ui.playerId=el.value},
-  setting:el=>{db.settings[el.dataset.k]=el.checked;save();if(ui.stones&&!ui.thrownId&&!ui.broom&&!ui.want)ui.step=stepsFor()[0]},
+  setting:el=>{const k=el.dataset.k;db.settings[k]=el.checked;save();if(ui.stones&&!ui.thrownId&&!ui.broom&&!ui.want)ui.step=stepsFor()[0];if(ui.stones&&k==='types')ui.type=el.checked?'placement':null;if(k==='rot')renderSettings()},
   import:el=>{if(el.files[0])importData(el.files[0]);el.value=''}
 };
 app.addEventListener('click',e=>{
