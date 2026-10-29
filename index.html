@@ -118,10 +118,17 @@ input[type=range]{padding:0;border:0;background:none;accent-color:var(--blue);ma
 .ov-bot .btn{padding:11px 14px}
 .steps{display:flex;gap:6px;margin:10px 0 2px}
 .steps span{flex:1;text-align:center;font-size:.78rem;font-weight:600;color:var(--muted);border-bottom:3px solid var(--line);padding-bottom:3px}
-.steps span.on{color:var(--ink);border-color:var(--blue)}
+.steps span.on{color:var(--blue);border-color:var(--blue);font-weight:700}
 .steps span.done{color:var(--ink);border-color:var(--ink)}
 .hint{margin:7px 0 9px;font-size:.92rem;display:flex;gap:8px;align-items:center}
 .hint svg{width:26px;height:26px;flex:none}
+.hint.ice{background:rgba(43,102,168,.1);border-radius:10px;padding:8px 10px}
+.hint b{font-weight:700}
+@keyframes nextPulse{0%,100%{box-shadow:0 0 0 0 rgba(43,102,168,.55)}50%{box-shadow:0 0 0 7px rgba(43,102,168,0)}}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.next{outline:2px solid var(--blue);outline-offset:2px;border-radius:12px;animation:nextPulse 1.6s ease-in-out infinite}
+.shake{animation:shake .3s ease-in-out 2}
+@media (prefers-reduced-motion:reduce){.next,.shake{animation:none}}
 .chrono{display:flex;gap:8px;margin:0 0 8px}
 .chrono .btn{flex:1.4;text-align:center}
 .chrono .btn.run{background:var(--red);border-color:var(--red);color:#fff;font-variant-numeric:tabular-nums}
@@ -203,7 +210,7 @@ ol.shots .dot{margin-top:4px}
    x : distance de la ligne centrale (+ à droite vu du lanceur)
    y : distance de la tee line (+ vers la hog line) */
 const HOG=640.1, BACK=-182.9, W2=237.5, R=14.5, HOUSE=182.9, HACK=1006, TOL=5;
-const HOUSE_FIT={x0:-238,x1:238,y0:-200,y1:250};
+const HOUSE_FIT={x0:-238,x1:238,y0:-198,y1:250};
 const POS=['Premier','Deuxième','Troisième','Skip','Substitut'];
 const COLORS=[['Rouge','#C8343B'],['Jaune','#E8B923'],['Bleu','#2E6FB7'],['Vert','#2F8F5B'],['Noir','#2A2F35']];
 const TYPES=[['placement','Placement'],['garde','Garde'],['sortie','Take-out']];
@@ -304,13 +311,13 @@ let screen='home',edit=null,ng=null,rp=null,settingsBack='home',ice=null;
 let gameCam={set:false},rpCam={set:false};
 let ui={};
 let chrono={t0:null,iv:null};
-const stepsFor=()=>{const s=db.settings,a=[];if(s.broom)a.push('brosse');if(s.want)a.push('voulue');a.push('arret','ajuster');return a};
-const STEP_LABEL={brosse:'Brosse',voulue:'Voulue',arret:'Arrêt',ajuster:'Ajuster'};
+const stepsFor=()=>{const s=db.settings,a=[];if(s.types)a.push('type');if(s.broom)a.push('brosse');if(s.want)a.push('voulue');a.push('arret','ajuster');return a};
+const STEP_LABEL={type:'Type',brosse:'Brosse',voulue:'Voulue',arret:'Arrêt',ajuster:'Ajuster'};
 function resetShot(){
   stopChrono();
   const g=curGame();if(!g)return;const e=lastEnd(g);
   const nt=e.score?{team:'A',playerId:null}:nextThrow(g,e);
-  ui={step:stepsFor()[0],type:db.settings.types?'placement':null,turn:null,turnAuto:false,rot:null,team:nt.team,playerId:nt.playerId,broom:null,want:null,hog:'',note:null,stones:currentStones(e),before:currentStones(e),thrownId:null,selected:null,practice:false,menu:false,forceEnd:false};
+  ui={step:stepsFor()[0],type:null,turn:null,turnAuto:false,rot:null,team:nt.team,playerId:nt.playerId,broom:null,want:null,hog:'',note:null,stones:currentStones(e),before:currentStones(e),thrownId:null,selected:null,practice:false,menu:false,forceEnd:false};
 }
 function shotMode(){const g=curGame();if(!g)return false;const e=lastEnd(g);return !e.score&&!ui.forceEnd&&e.shots.length<maxStones(g)}
 /* Sens déduit : la pierre courbe du côté de sa rotation. Position voulue à droite de la brosse = rotation horaire,
@@ -344,7 +351,7 @@ function sheetBase(){
 <line x1="0" x2="0" y1="-262" y2="708" stroke="${INK}" stroke-width="1.2"/>
 <line x1="${-W2}" x2="${W2}" y1="${HOG}" y2="${HOG}" stroke="#C8343B" stroke-width="10"/>
 <text x="${W2-8}" y="${HOG-12}" text-anchor="end" font-size="15" fill="#5A6B7A" font-family="system-ui,sans-serif">hog line</text>
-<text x="${W2-8}" y="${BACK-8}" text-anchor="end" font-size="15" fill="#5A6B7A" font-family="system-ui,sans-serif">back line</text>`;
+<text x="${W2-8}" y="${BACK+18}" text-anchor="end" font-size="15" fill="#5A6B7A" font-family="system-ui,sans-serif">back line</text>`;
 }
 function stoneSVG(s,color,o={}){
   return `<g transform="translate(${r1(s.x)} ${r1(s.y)})" pointer-events="none">
@@ -370,7 +377,9 @@ function makeIce(svg,opt){
   const size=()=>{const r=svg.getBoundingClientRect();return{W:r.width,H:r.height,r}};
   function apply(){const{W,H}=size();if(!W||!H||!st.s)return;const w=W/st.s,h=H/st.s;
     /* La glace ne glisse pas de côté : centrée quand elle remplit la largeur, bornée à ses bords quand on zoome */
-    st.cx=w>=2*W2?0:Math.max(-W2+w/2,Math.min(W2-w/2,st.cx));st.cy=Math.max(-262,Math.min(HOG+60,st.cy));svg.setAttribute('viewBox',`${r1(st.cx-w/2)} ${r1(st.cy-h/2)} ${r1(w)} ${r1(h)}`)}
+    st.cx=w>=2*W2?0:Math.max(-W2+w/2,Math.min(W2-w/2,st.cx));
+    const ins=opt.insets?opt.insets():{t:0,b:0},lo=BACK-15+h/2-ins.t/st.s,hi=HOG+40-h/2+ins.b/st.s;
+    st.cy=hi<lo?lo:Math.max(lo,Math.min(hi,st.cy));svg.setAttribute('viewBox',`${r1(st.cx-w/2)} ${r1(st.cy-h/2)} ${r1(w)} ${r1(h)}`)}
   function fit(){
     const{W,H}=size();if(!W||!H)return;const ins=opt.insets?opt.insets():{t:0,b:0};const reg=opt.region;
     const fh=Math.max(120,H-ins.t-ins.b);
@@ -568,7 +577,7 @@ function renderGame(){
 <button class="refit" data-act="refit">Recadrer</button>
 <div class="ov ov-bot" id="panel"></div></div>`;
   ice=makeIce($('#ice'),{cam:gameCam,region:HOUSE_FIT,insets:()=>({t:$('.ov-top').offsetHeight,b:$('#panel').offsetHeight}),
-    onTap:gameTap,onDown:gameDown,onMove:gameMove,onUp:gameUp,onCancel:gameCancel,pan:()=>!shotMode()||ui.step==='ajuster'});
+    onTap:gameTap,onDown:gameDown,onMove:gameMove,onUp:gameUp,onCancel:gameCancel,pan:()=>true});
   drawDyn();renderPanel();
   requestAnimationFrame(()=>{if(!ice)return;if(!gameCam.set)ice.fit();else ice.apply()});
 }
@@ -594,31 +603,35 @@ function renderPanel(){
 }
 function shotPanel(g,e){
   const max=maxStones(g),ps=g[ui.team].players,running=chrono.t0!=null,S=db.settings;
-  const steps=stepsFor(),cur=steps.indexOf(ui.step),first=cur===0;
+  const steps=stepsFor(),cur=steps.indexOf(ui.step),first=!ui.broom&&!ui.want&&!ui.thrownId&&ui.step!=='ajuster';
+  const needChrono=S.chrono&&ui.step==='arret'&&!ui.hog;
+  const nextAdj=ui.step!=='ajuster'?null:S.rot&&ui.rot==null?'rot':S.note&&ui.note==null?'note':'validate';
   const hints={
+    type:[null,'Choisissez le type de lancer demandé par le skip.'],
     brosse:[BROOM_ICON,'Touchez l’endroit où le skip place sa brosse.'],
     voulue:[WANT_ICON,'Touchez la position voulue de la pierre.'],
-    arret:[null,'Touchez l’endroit où la pierre s’est arrêtée.'],
-    ajuster:[null,'Glissez les pierres qui ont bougé. Sortez une pierre de la glace pour la retirer. Deux doigts pour zoomer.']};
+    arret:[null,needChrono?'Partez le chrono quand la pierre passe la première hog line et arrêtez-le à la deuxième. Touchez ensuite où elle s’est arrêtée.':'Touchez l’endroit où la pierre s’est arrêtée.'],
+    ajuster:[null,{rot:'Entrez le nombre de tours, puis la note.',note:'Donnez une note au lancer, de 0 à 4.',validate:'Glissez les pierres qui ont bougé, au besoin, puis validez le lancer.'}[nextAdj]+' Sortez une pierre de la glace pour la retirer.']};
   let [icon,hint]=hints[ui.step];
   if(ui.practice){icon=null;hint='Touchez la glace pour placer la pierre d’exercice.'}
   const iconHTML=icon?iconSVG(icon,icon===WANT_ICON?'-20 -20 40 40':undefined):'';
-  const back=!first&&ui.step!=='ajuster'?`<button class="btn c" data-act="back">Retour</button>`:'';
+  const back=cur>0&&steps[cur-1]!=='type'&&ui.step!=='ajuster'?`<button class="btn c" data-act="back">Retour</button>`:'';
   const practice=first&&g.mode!=='competition'?`<button class="btn c" data-act="practice">${ui.practice?'Annuler':'Pierre d’exercice'}</button>`:'';
   let actions='';
+  if(ui.step==='type')actions=practice?`<div class="row">${practice}</div>`:'';
   if(ui.step==='brosse'||ui.step==='voulue')actions=`<div class="row">${back}<button class="btn c" data-act="skip">Passer</button>${practice}</div>`;
   if(ui.step==='arret')actions=`<div class="row">${back}<button class="btn c" data-act="out">Hors jeu</button>${practice}</div>`;
   const half=ui.rot!=null&&ui.rot%1!==0,whole=ui.rot!=null?Math.floor(ui.rot):null;
-  const rotRow=S.rot?`<div class="notes" role="group" aria-label="Nombre de tours"><span>Tours</span>${[1,2,3,4,5,6].map(n=>`<button data-act="rot" data-v="${n}" class="${whole===n?'on':''}">${n}</button>`).join('')}<button data-act="rotHalf" class="${half?'on':''}" aria-label="Ajouter un demi-tour">+½</button></div>`:'';
-  if(ui.step==='ajuster')actions=`${rotRow}${S.note?`<div class="notes" role="group" aria-label="Note du lancer"><span>Note</span>${[0,1,2,3,4].map(n=>`<button data-act="note" data-v="${n}" class="${ui.note===n?'on':''}">${n}</button>`).join('')}</div>`:''}
-<div class="stack">${ui.selected?`<button class="btn c danger" data-act="removeSel">Retirer la pierre sélectionnée</button>`:''}<div class="row"><button class="btn c" data-act="redo">Recommencer</button><button class="btn primary" data-act="validate">Valider le lancer</button></div></div>`;
+  const rotRow=S.rot?`<div class="notes ${nextAdj==='rot'?'next':''}" role="group" aria-label="Nombre de tours"><span>Tours</span>${[1,2,3,4,5,6].map(n=>`<button data-act="rot" data-v="${n}" class="${whole===n?'on':''}">${n}</button>`).join('')}<button data-act="rotHalf" class="${half?'on':''}" aria-label="Ajouter un demi-tour">+½</button></div>`:'';
+  if(ui.step==='ajuster')actions=`${rotRow}${S.note?`<div class="notes ${nextAdj==='note'?'next':''}" role="group" aria-label="Note du lancer"><span>Note</span>${[0,1,2,3,4].map(n=>`<button data-act="note" data-v="${n}" class="${ui.note===n?'on':''}">${n}</button>`).join('')}</div>`:''}
+<div class="stack">${ui.selected?`<button class="btn c danger" data-act="removeSel">Retirer la pierre sélectionnée</button>`:''}<div class="row"><button class="btn c" data-act="redo">Recommencer</button><button class="btn primary ${nextAdj==='validate'?'next':''}" data-act="validate">Valider le lancer</button></div></div>`;
   return `<div class="who"><i class="dot" style="background:${g[ui.team].color}"></i><span class="num">Pierre ${e.shots.length+1} de ${max}</span>
 <select data-ch="thrower" aria-label="Lanceur">${ps.map((p,i)=>`<option value="${p.id}" ${p.id===ui.playerId?'selected':''}>${esc(pName(p,i))}</option>`).join('')}</select></div>
-${S.types?`<div class="seg" role="group" aria-label="Type de lancer">${TYPES.map(([v,l])=>`<button data-act="type" data-v="${v}" class="${ui.type===v?'on':''}">${l}</button>`).join('')}</div>`:''}
+${S.types?`<div class="seg ${ui.step==='type'?'next':''}" role="group" aria-label="Type de lancer">${TYPES.map(([v,l])=>`<button data-act="type" data-v="${v}" class="${ui.type===v?'on':''}">${l}</button>`).join('')}</div>`:''}
 ${S.rot?`<div class="seg" role="group" aria-label="Sens de rotation" style="margin-top:6px">${TURNS.map(([v,l])=>`<button data-act="turn" data-v="${v}" class="${ui.turn===v?'on':''}">${l}${ui.turn===v&&ui.turnAuto?' <small class="auto">auto</small>':''}</button>`).join('')}</div>`:''}
-<div class="steps">${steps.map((s,i)=>`<span class="${i===cur?'on':i<cur?'done':''}">${STEP_LABEL[s]}</span>`).join('')}</div>
-<p class="hint">${iconHTML}<span>${hint}</span></p>
-${S.chrono?`<div class="chrono"><button class="btn ${running?'run':''}" id="chronoBtn" data-act="chrono">${running?'Arrêter':'Chrono hog à hog'}</button><input data-in="hog" inputmode="decimal" value="${esc(ui.hog)}" placeholder="secondes" aria-label="Temps hog à hog en secondes"></div>`:''}
+<div class="steps">${steps.map((s,i)=>`<span class="${i===cur?'on':i<cur?'done':''}">${i<cur?'✓ ':''}${STEP_LABEL[s]}</span>`).join('')}</div>
+<p class="hint ${['brosse','voulue','arret'].includes(ui.step)&&!needChrono||ui.practice?'ice':''}">${iconHTML}<span><b>Étape ${cur+1} sur ${steps.length}.</b> ${hint}</span></p>
+${S.chrono?`<div class="chrono"><button class="btn ${running?'run':''} ${needChrono&&!running?'next':''}" id="chronoBtn" data-act="chrono">${running?'Arrêter':'Chrono hog à hog'}</button><input data-in="hog" inputmode="decimal" value="${esc(ui.hog)}" placeholder="secondes" aria-label="Temps hog à hog en secondes"></div>`:''}
 ${actions}`;
 }
 function endPanel(g,e){
@@ -653,6 +666,7 @@ function gameTap(p){
     e.measures.push({closer:ref(hit),farther:ref(other)});save();drawDyn();renderPanel();return;
   }
   if(ui.practice){const s={id:'x'+uid(),team:'X',...pt};if(!inPlay(s))return toast('Placez la pierre sur la glace');ui.stones.push(s);ui.before.push(clone(s));ui.practice=false;drawDyn();renderPanel();return}
+  if(ui.step==='type'){toast('Choisissez d’abord le type de lancer');const t=$('[aria-label="Type de lancer"]');if(t){t.classList.remove('shake');void t.offsetWidth;t.classList.add('shake')}return}
   if(ui.step==='brosse'){ui.broom=pt;nextStep()}
   else if(ui.step==='voulue'){ui.want=pt;autoTurn();nextStep()}
   else if(ui.step==='arret'){const s={id:'t'+uid(),team:ui.team,...pt};if(inPlay(s)){ui.stones.push(s);ui.thrownId=s.id}else toast('Pierre hors jeu');ui.step='ajuster'}
@@ -815,7 +829,7 @@ function scatterSVG(offs,mean,color){
   const m=offs.length?`<g transform="translate(${r1(mean.dx)} ${r1(mean.dy)})"><circle r="11" fill="none" stroke="#13263B" stroke-width="3"/><circle r="3" fill="#13263B"/></g>`:'';
   const T=(x,y,t,a='middle')=>`<text x="${x}" y="${y}" text-anchor="${a}" font-size="15" fill="var(--muted)" font-family="system-ui,sans-serif">${t}</text>`;
   return `<svg viewBox="-200 -200 400 400" class="scatter" aria-label="Dispersion des arrêts autour de la position voulue">
-<circle r="182.9" fill="#2E6FB7" fill-opacity=".14"/><circle r="121.9" fill="var(--surface)"/><circle r="61" fill="#C8343B" fill-opacity=".14"/>
+${[30,60,120].map(r=>`<circle r="${r}" fill="none" stroke="var(--line)" stroke-width="2" ${r===120?'':'stroke-dasharray="6 5"'}/><text x="${r1(r*.7071+4)}" y="${r1(-r*.7071-4)}" font-size="13" fill="var(--muted)" font-family="system-ui,sans-serif">${r} cm</text>`).join('')}
 <path d="M-190 0H190M0-190V190" stroke="var(--line)" stroke-width="1.5"/>
 <g stroke="#13263B" stroke-width="2.4"><circle r="9" fill="none"/></g>
 ${pts}${m}${T(0,-176,'Long')}${T(0,190,'Court')}${T(-192,-6,'Gauche','start')}${T(192,-6,'Droite','end')}</svg>`;
@@ -852,7 +866,7 @@ function renderPlayer(){
   <section class="sec"><h3>Points forts</h3>${list(A.plus,'plus','Pas encore assez de lancers. Il en faut au moins 3 par catégorie.')}</section>
   <section class="sec"><h3>À travailler</h3>${list(A.minus,'minus',A.plus.length?'Rien de marqué pour l’instant.':'Pas encore assez de lancers. Il en faut au moins 3 par catégorie.')}</section>
 </div>
-${A.offs.length?`<section class="sec"><h3>Où la pierre s’arrête</h3><p class="muted small">La croix au centre est la position voulue. Chaque point est un arrêt, le cercle foncé est la moyenne. Placements et gardes seulement.</p>${scatterSVG(A.offs,A.mean,color)}</section>`:''}
+${A.offs.length?`<section class="sec"><h3>Où la pierre s’arrête</h3><p class="muted small">Le centre représente la position voulue, peu importe où elle était sur la glace. Chaque point est un arrêt, placé selon sa distance et sa direction par rapport à la cible. Le cercle foncé est la moyenne. Placements et gardes seulement.</p>${scatterSVG(A.offs,A.mean,color)}</section>`:''}
 ${A.byType.some(r=>r.notes.length)||A.byTurn.some(r=>r.notes.length)?`<section class="sec"><h3>Pourcentage par catégorie</h3><div class="bars"><div class="bar head"><span class="bl"></span><span class="bt"></span><span class="bv">%</span><span class="bn">lancers</span></div>${barRows(A.byType)}${barRows(A.byTurn)}</div></section>`:''}
 ${progressSVG(A.games,color)?`<section class="sec"><h3>Progression</h3><p class="muted small">Pourcentage par partie, de la plus ancienne à la plus récente.</p>${progressSVG(A.games,color)}</section>`:''}
 <p class="muted small" style="margin-top:16px">Calculé sur toutes les parties et tous les entraînements enregistrés dans ce téléphone.</p></div>`;
@@ -909,17 +923,17 @@ const ACT={
   ngMode:v=>{ng.mode=v;renderNew()},
   ngHammer:v=>{ng.hammer=v;renderNew()},
   startGame:startGame,
-  type:v=>{ui.type=v;renderPanel()},
+  type:v=>{ui.type=v;if(ui.step==='type')nextStep();renderPanel()},
   turn:v=>{ui.turn=ui.turn===v&&!ui.turnAuto?null:v;ui.turnAuto=false;renderPanel()},
   rot:v=>{const n=+v,cur=ui.rot;if(cur!=null&&Math.floor(cur)===n)ui.rot=null;else ui.rot=n+(cur!=null&&cur%1!==0?.5:0);renderPanel()},
   rotHalf:()=>{if(ui.rot==null)return toast('Choisissez d’abord le nombre de tours');ui.rot=ui.rot%1!==0?Math.floor(ui.rot):Math.floor(ui.rot)+.5;renderPanel()},
   skip:()=>{if(ui.step==='brosse')ui.broom=null;if(ui.step==='voulue')ui.want=null;autoTurn();ui.practice=false;nextStep();drawDyn();renderPanel()},
-  back:()=>{const a=stepsFor(),prev=a[a.indexOf(ui.step)-1];if(!prev)return;if(prev==='brosse')ui.broom=null;if(prev==='voulue')ui.want=null;autoTurn();ui.step=prev;drawDyn();renderPanel()},
+  back:()=>{const a=stepsFor(),prev=a[a.indexOf(ui.step)-1];if(!prev)return;if(prev==='brosse')ui.broom=null;if(prev==='voulue')ui.want=null;autoTurn();ui.step=prev;ui.practice=false;drawDyn();renderPanel()},
   practice:()=>{ui.practice=!ui.practice;renderPanel()},
   out:()=>{ui.thrownId=null;ui.practice=false;ui.step='ajuster';drawDyn();renderPanel()},
   note:v=>{ui.note=ui.note===+v?null:+v;renderPanel()},
   removeSel:()=>{ui.stones=ui.stones.filter(s=>s.id!==ui.selected);ui.selected=null;drawDyn();renderPanel();toast('Pierre retirée du jeu')},
-  redo:()=>{ui.stones=clone(ui.before);ui.thrownId=null;ui.broom=null;ui.want=null;ui.note=null;ui.selected=null;ui.step=stepsFor()[0];drawDyn();renderPanel()},
+  redo:()=>{ui.stones=clone(ui.before);ui.thrownId=null;ui.broom=null;ui.want=null;ui.note=null;ui.selected=null;ui.step=stepsFor()[0];if(ui.type&&ui.step==='type')nextStep();drawDyn();renderPanel()},
   validate:validateShot,
   chrono:toggleChrono,
   menu:()=>{ui.menu=!ui.menu;renderPanel()},
@@ -951,7 +965,7 @@ const CH={
   ngTeam:el=>{ng.teamId=el.value;if(ng.oppId===el.value)ng.oppId='';renderNew()},
   ngOpp:el=>{ng.oppId=el.value;renderNew()},
   thrower:el=>{ui.playerId=el.value;autoTurn();renderPanel()},
-  setting:el=>{const k=el.dataset.k;db.settings[k]=el.checked;save();if(ui.stones&&!ui.thrownId&&!ui.broom&&!ui.want)ui.step=stepsFor()[0];if(ui.stones&&k==='types')ui.type=el.checked?'placement':null;if(k==='rot')renderSettings()},
+  setting:el=>{const k=el.dataset.k;db.settings[k]=el.checked;save();if(ui.stones&&!ui.thrownId&&!ui.broom&&!ui.want)ui.step=stepsFor()[0];if(ui.stones&&k==='types')ui.type=null;if(k==='rot')renderSettings()},
   import:el=>{if(el.files[0])importData(el.files[0]);el.value=''}
 };
 app.addEventListener('click',e=>{
