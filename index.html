@@ -654,6 +654,14 @@ function finalPanel(g){
 }
 const hitStone=(stones,p,list)=>{let best=null,bd=R*1.9;for(const s of list||stones){const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<bd){bd=d;best=s}}return best};
 let dragS=null;
+/* Deux pierres ne peuvent pas se chevaucher : la pierre posée glisse juste à côté, collée à l'autre */
+function separate(s,others){
+  for(let k=0;k<12;k++){let moved=false;
+    for(const o of others){if(o.id===s.id)continue;let dx=s.x-o.x,dy=s.y-o.y,d=Math.hypot(dx,dy);
+      if(d<2*R-.05){if(d<.01){dx=0;dy=1;d=1}const f=(2*R)/d;s.x=r1(o.x+dx*f);s.y=r1(o.y+dy*f);moved=true}}
+    if(!moved)break}
+  return s;
+}
 function gameTap(p){
   const g=curGame();if(!g)return;const e=lastEnd(g);
   if(ui.menu){ui.menu=false;renderPanel();return}
@@ -665,11 +673,11 @@ function gameTap(p){
     const other=hit.id===tie.a.id?tie.b:tie.a;const ref=s=>({id:s.id,x:s.x,y:s.y});
     e.measures.push({closer:ref(hit),farther:ref(other)});save();drawDyn();renderPanel();return;
   }
-  if(ui.practice){const s={id:'x'+uid(),team:'X',...pt};if(!inPlay(s))return toast('Placez la pierre sur la glace');ui.stones.push(s);ui.before.push(clone(s));ui.practice=false;drawDyn();renderPanel();return}
+  if(ui.practice){const s=separate({id:'x'+uid(),team:'X',...pt},ui.stones);if(!inPlay(s))return toast('Placez la pierre sur la glace');ui.stones.push(s);ui.before.push(clone(s));ui.practice=false;drawDyn();renderPanel();return}
   if(ui.step==='type'){toast('Choisissez d’abord le type de lancer');const t=$('[aria-label="Type de lancer"]');if(t){t.classList.remove('shake');void t.offsetWidth;t.classList.add('shake')}return}
   if(ui.step==='brosse'){ui.broom=pt;nextStep()}
   else if(ui.step==='voulue'){ui.want=pt;autoTurn();nextStep()}
-  else if(ui.step==='arret'){const s={id:'t'+uid(),team:ui.team,...pt};if(inPlay(s)){ui.stones.push(s);ui.thrownId=s.id}else toast('Pierre hors jeu');ui.step='ajuster'}
+  else if(ui.step==='arret'){const s=separate({id:'t'+uid(),team:ui.team,...pt},ui.stones);if(inPlay(s)){ui.stones.push(s);ui.thrownId=s.id}else toast('Pierre hors jeu');ui.step='ajuster'}
   else if(ui.step==='ajuster'){if(!ui.selected)return;ui.selected=null}
   drawDyn();renderPanel();
 }
@@ -682,7 +690,7 @@ function gameDown(p){
 function gameMove(p){const s=dragS&&ui.stones.find(x=>x.id===dragS.id);if(!s)return;s.x=r1(p.x+dragS.dx);s.y=r1(p.y+dragS.dy);drawDyn()}
 function gameUp(p,moved){
   const s=dragS&&ui.stones.find(x=>x.id===dragS.id);dragS=null;if(!s)return;
-  if(moved){if(!inPlay(s)){ui.stones=ui.stones.filter(x=>x.id!==s.id);if(ui.selected===s.id)ui.selected=null;toast('Pierre retirée du jeu')}}
+  if(moved){if(inPlay(s))separate(s,ui.stones);if(!inPlay(s)){ui.stones=ui.stones.filter(x=>x.id!==s.id);if(ui.selected===s.id)ui.selected=null;toast('Pierre retirée du jeu')}}
   else ui.selected=ui.selected===s.id?null:s.id;
   drawDyn();renderPanel();
 }
