@@ -121,7 +121,8 @@ input[type=range]{padding:0;border:0;background:none;accent-color:var(--blue);ma
 .steps span.on{color:var(--blue);border-color:var(--blue);font-weight:700}
 .steps span.done{color:var(--ink);border-color:var(--ink)}
 .hint{margin:7px 0 9px;font-size:.92rem;display:flex;gap:8px;align-items:center}
-.hint svg{width:26px;height:26px;flex:none}
+.hint svg{width:26px;height:26px;flex:none;color:var(--ink)}
+#ice,#rpice,.picker{color:#13263B}
 .hint.ice{background:rgba(43,102,168,.1);border-radius:10px;padding:8px 10px}
 .hint b{font-weight:700}
 @keyframes nextPulse{0%,100%{box-shadow:0 0 0 0 rgba(43,102,168,.55)}50%{box-shadow:0 0 0 7px rgba(43,102,168,0)}}
@@ -194,7 +195,8 @@ ol.shots .dot{margin-top:4px}
 .info b{font-family:var(--cond);font-size:1.2rem}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;color:var(--muted);margin-top:8px}
 .legend span{display:flex;align-items:center;gap:5px}
-.legend svg{width:20px;height:20px}
+.legend svg{width:20px;height:20px;color:var(--ink)}
+.hint svg,.legend svg{--icon-fill:transparent}
 .empty{border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted)}
 #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center;z-index:9}
 #toast.show{opacity:1}
@@ -359,14 +361,14 @@ ${o.measure?`<circle r="${R+8}" fill="none" stroke="#E07B2F" stroke-width="4"/>`
 ${o.selected?`<circle r="${R+7}" fill="none" stroke="#2B66A8" stroke-width="3.5"/>`:''}
 <circle r="${R}" fill="#7A8086" stroke="#3E4449" stroke-width="1.6"/><circle r="${R-3.6}" fill="${color}"/>
 <rect x="-7.5" y="-2.3" width="15" height="4.6" rx="2.3" fill="rgba(0,0,0,.3)"/>
-${o.thrown?`<circle r="${R+4}" fill="none" stroke="#13263B" stroke-width="2" stroke-dasharray="4 3"/>`:''}</g>`;
+${o.thrown?`<circle r="${R+4}" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/>`:''}</g>`;
 }
 function rankSVG(s,n){return `<g transform="translate(${r1(s.x+R*.8)} ${r1(s.y-R*.8)})" pointer-events="none"><circle r="8.5" fill="#fff" stroke="#13263B" stroke-width="1.3"/><text y="4" text-anchor="middle" font-size="11.5" font-weight="700" fill="#13263B" font-family="system-ui,sans-serif">${n}</text></g>`}
 /* Position voulue : une croix de visée */
-const WANT_ICON='<circle r="10" fill="none" stroke="#13263B" stroke-width="2.6"/><path d="M-17 0H-6M6 0H17M0-17V-6M0 6V17" stroke="#13263B" stroke-width="2.6"/>';
+const WANT_ICON='<circle r="10" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M-17 0H-6M6 0H17M0-17V-6M0 6V17" stroke="currentColor" stroke-width="2.6"/>';
 function targetSVG(t){return `<g transform="translate(${t.x} ${t.y})" pointer-events="none">${WANT_ICON}</g>`}
 /* Brosse du skip : la tête vue de dessus, à la verticale, avec un point au centre qui marque l'endroit visé */
-const BROOM_ICON='<rect x="-8" y="-20" width="16" height="40" rx="5" fill="#fff" stroke="#13263B" stroke-width="2.6"/><circle r="2.8" fill="#13263B"/>';
+const BROOM_ICON='<rect x="-8" y="-20" width="16" height="40" rx="5" style="fill:var(--icon-fill,#fff)" stroke="currentColor" stroke-width="2.6"/><circle r="2.8" fill="currentColor"/>';
 function broomSVG(t){return `<g transform="translate(${t.x} ${t.y})" pointer-events="none">${BROOM_ICON}</g>`}
 const iconSVG=(inner,vb='-24 -24 48 48')=>`<svg viewBox="${vb}" aria-hidden="true">${inner}</svg>`;
 function lineSVG(a,b){return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#13263B" stroke-width="1.6" stroke-dasharray="5 4" pointer-events="none"/>`}
@@ -833,13 +835,13 @@ function barRows(rows){
 }
 /* Dispersion : la position voulue au centre, chaque point est l'endroit où la pierre s'est arrêtée par rapport à elle */
 function scatterSVG(offs,mean,color){
-  const pts=offs.map(o=>`<circle cx="${r1(Math.max(-175,Math.min(175,o.dx)))}" cy="${r1(Math.max(-175,Math.min(175,o.dy)))}" r="7" fill="${color}" fill-opacity=".55" stroke="#13263B" stroke-opacity=".5" stroke-width="1"/>`).join('');
-  const m=offs.length?`<g transform="translate(${r1(mean.dx)} ${r1(mean.dy)})"><circle r="11" fill="none" stroke="#13263B" stroke-width="3"/><circle r="3" fill="#13263B"/></g>`:'';
+  const pts=offs.map(o=>`<circle cx="${r1(Math.max(-175,Math.min(175,o.dx)))}" cy="${r1(Math.max(-175,Math.min(175,o.dy)))}" r="7" fill="${color}" fill-opacity=".7" stroke="var(--ink)" stroke-opacity=".45" stroke-width="1"/>`).join('');
+  const m=offs.length?`<g transform="translate(${r1(mean.dx)} ${r1(mean.dy)})"><circle r="12" fill="var(--surface)" fill-opacity=".6" stroke="var(--ink)" stroke-width="3.5"/><circle r="3.5" fill="var(--ink)"/></g>`:'';
   const T=(x,y,t,a='middle')=>`<text x="${x}" y="${y}" text-anchor="${a}" font-size="15" fill="var(--muted)" font-family="system-ui,sans-serif">${t}</text>`;
   return `<svg viewBox="-200 -200 400 400" class="scatter" aria-label="Dispersion des arrêts autour de la position voulue">
 ${[30,60,120].map(r=>`<circle r="${r}" fill="none" stroke="var(--line)" stroke-width="2" ${r===120?'':'stroke-dasharray="6 5"'}/><text x="${r1(r*.7071+4)}" y="${r1(-r*.7071-4)}" font-size="13" fill="var(--muted)" font-family="system-ui,sans-serif">${r} cm</text>`).join('')}
 <path d="M-190 0H190M0-190V190" stroke="var(--line)" stroke-width="1.5"/>
-<g stroke="#13263B" stroke-width="2.4"><circle r="9" fill="none"/></g>
+<g stroke="var(--ink)" stroke-width="2.4"><circle r="9" fill="none"/><path d="M-16 0H-6M6 0H16M0-16V-6M0 6V16"/></g>
 ${pts}${m}${T(0,-176,'Long')}${T(0,190,'Court')}${T(-192,-6,'Gauche','start')}${T(192,-6,'Droite','end')}</svg>`;
 }
 function progressSVG(games,color){
@@ -874,7 +876,7 @@ function renderPlayer(){
   <section class="sec"><h3>Points forts</h3>${list(A.plus,'plus','Pas encore assez de lancers. Il en faut au moins 3 par catégorie.')}</section>
   <section class="sec"><h3>À travailler</h3>${list(A.minus,'minus',A.plus.length?'Rien de marqué pour l’instant.':'Pas encore assez de lancers. Il en faut au moins 3 par catégorie.')}</section>
 </div>
-${A.offs.length?`<section class="sec"><h3>Où la pierre s’arrête</h3><p class="muted small">Le centre représente la position voulue, peu importe où elle était sur la glace. Chaque point est un arrêt, placé selon sa distance et sa direction par rapport à la cible. Le cercle foncé est la moyenne. Placements et gardes seulement.</p>${scatterSVG(A.offs,A.mean,color)}</section>`:''}
+${A.offs.length?`<section class="sec"><h3>Où la pierre s’arrête</h3><p class="muted small">Le centre représente la position voulue, peu importe où elle était sur la glace. Chaque point est un arrêt, placé selon sa distance et sa direction par rapport à la cible. Le cercle avec un point au centre est la moyenne. Placements et gardes seulement.</p>${scatterSVG(A.offs,A.mean,color)}</section>`:''}
 ${A.byType.some(r=>r.notes.length)||A.byTurn.some(r=>r.notes.length)?`<section class="sec"><h3>Pourcentage par catégorie</h3><div class="bars"><div class="bar head"><span class="bl"></span><span class="bt"></span><span class="bv">%</span><span class="bn">lancers</span></div>${barRows(A.byType)}${barRows(A.byTurn)}</div></section>`:''}
 ${progressSVG(A.games,color)?`<section class="sec"><h3>Progression</h3><p class="muted small">Pourcentage par partie, de la plus ancienne à la plus récente.</p>${progressSVG(A.games,color)}</section>`:''}
 <p class="muted small" style="margin-top:16px">Calculé sur toutes les parties et tous les entraînements enregistrés dans ce téléphone.</p></div>`;
