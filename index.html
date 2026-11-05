@@ -102,6 +102,15 @@ input[type=range]{padding:0;border:0;background:none;accent-color:var(--blue);ma
 .ov-bot{bottom:0;padding:10px calc(env(safe-area-inset-right,0px) + 12px) calc(env(safe-area-inset-bottom,0px) + 10px) calc(env(safe-area-inset-left,0px) + 12px);border-top:1px solid var(--line);max-height:64%;overflow-y:auto}
 .ov-bot .inner{max-width:560px;margin:0 auto}
 .refit{position:absolute;right:calc(env(safe-area-inset-right,0px) + 12px);bottom:300px;border:1px solid var(--line);background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:20px;padding:7px 13px;font-size:.85rem;font-weight:600;color:var(--ink)}
+.advbtn{position:absolute;left:calc(env(safe-area-inset-left,0px) + 12px);bottom:300px;border:1px solid #E07B2F;background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:20px;padding:7px 14px;font-size:.85rem;font-weight:700;color:#C2621B}
+.advbtn.on{background:#E07B2F;color:#fff}
+.advcard{position:absolute;left:10px;right:10px;max-width:520px;margin:0 auto;background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--line);border-left:5px solid #E07B2F;border-radius:0;padding:10px 12px;font-size:.88rem;line-height:1.35}
+.advh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.advh b{font-family:var(--cond);font-size:1.3rem}
+.advh span{font-size:.8rem;font-weight:600;color:#C2621B;white-space:nowrap}
+.advctx{margin:2px 0 4px;font-size:.78rem;color:var(--muted)}
+.advcard ul{margin:0;padding-left:18px}
+.advcard li+li{margin-top:3px}
 .sb{flex:1;display:grid;grid-template-columns:1fr auto auto auto 1fr;align-items:center;gap:8px;min-width:0}
 .sb.train{grid-template-columns:1fr auto}
 .sb .t{display:flex;align-items:center;gap:6px;min-width:0;font-weight:600;font-size:.9rem}
@@ -222,7 +231,7 @@ const turnLabel=t=>(TURNS.find(x=>x[0]===t)||[0,''])[1];
 const ROT_METHOD={hog:'hog à hog',lacher:'du lâcher à l’arrêt'};
 const PRACTICE='#A7B0B7';
 const DB_KEY='suiviCurling.v1';
-const DEFAULT_SETTINGS={types:true,broom:true,want:true,chrono:true,note:true,rot:false,rotMethod:'hog'};
+const DEFAULT_SETTINGS={types:true,broom:true,want:true,chrono:true,note:true,rot:false,rotMethod:'hog',advice:true};
 
 /* ---------- Données ---------- */
 let db=load();
@@ -309,6 +318,99 @@ function endScore(g,e){const st=currentStones(e);return g.mode==='competition'?s
 
 /* ---------- État de l'interface ---------- */
 let pv=null;
+let advOn=false;
+
+/* ================= Conseil : règles de stratégie =================
+   Se base sur : le marteau, le pointage, les bouts restants, la zone des gardes (règle des 5 pierres)
+   et la position des pierres avant le lancer. Ajusté ensuite selon les forces du lanceur. */
+const inFGZ=s=>s.y>0&&s.y<HOG&&Math.hypot(s.x,s.y)>HOUSE+R;
+const guardOf=(s,stones)=>stones.filter(o=>o.id!==s.id&&o.y>s.y+R&&o.y<HOG&&Math.abs(o.x-s.x)<2*R).sort((a,b)=>a.y-b.y)[0]||null;
+const freeSpot=(t,stones)=>{const p=separate({id:'__g',x:t.x,y:t.y},stones);return{x:p.x,y:p.y}};
+function playerProfile(pid){
+  if(!pid)return null;const A=analyse(pid);
+  const typ=k=>{const r=A.byType.find(x=>x.k===k);return r&&r.notes.length>=3?pctOf(r.notes):null};
+  const trn=k=>{const r=A.byTurn.find(x=>x.k===k);return r&&r.notes.length>=3?pctOf(r.notes):null};
+  return{placement:typ('placement'),garde:typ('garde'),sortie:typ('sortie'),in:trn('in'),out:trn('out')};
+}
+function advise(g,e){
+  const team=ui.team,comp=g.mode==='competition',opp=comp?(team==='A'?'B':'A'):'X';
+  const st=ui.before||[],k=e.shots.length,total=maxStones(g),isLast=k===total-1;
+  const hammer=comp?e.hammer===team:true;
+  const T=totals(g),diff=comp?T[team]-T[opp]:0,endsLeft=comp?g.endsPlanned-e.n:99;
+  const fgz=k<4,late=comp&&endsLeft<=1;
+  const mode=late&&diff>0?'def':late&&diff<0?'att':hammer?'mart':'force';
+  const house=st.filter(inHouse).map(s=>({...s,d:Math.hypot(s.x,s.y)})).sort((a,b)=>a.d-b.d);
+  const shot=house[0]||null,mine=shot&&shot.team===team;
+  const oppGuards=st.filter(s=>s.team===opp&&inFGZ(s)),myGuards=st.filter(s=>s.team===team&&inFGZ(s));
+  const why=[];
+  const ctx=comp?(hammer?'Vous avez le marteau':'Vous n’avez pas le marteau')+(diff>0?`, en avance de ${diff}`:diff<0?`, mené de ${-diff}`:', à égalité')+(endsLeft===0?', dernier bout':endsLeft===1?', avant-dernier bout':''):'Entraînement';
+  let a=null;
+  const draw=(t,title,r)=>({type:'placement',title,target:freeSpot(t,st),why:[r]});
+  const guard=(t,title,r)=>({type:'garde',title,target:freeSpot(t,st),why:[r]});
+  const hit=(s,title,r)=>({type:'sortie',title,target:{x:s.x,y:s.y},hitId:s.id,why:[r]});
+  const nOpp=house.findIndex(s=>s.team!==team);const myCount=nOpp<0?house.length:nOpp;
+
+  if(isLast){
+    if(!shot){
+      a=comp&&hammer&&mode!=='def'&&endsLeft>0&&diff<=0
+        ?{type:'sortie',title:'Bout nul',target:{x:0,y:-170},why:['La maison est vide : lancer à travers pour garder le marteau au prochain bout, plutôt que de marquer un seul point.']}
+        :draw({x:0,y:15},'Placement au bouton','Une pierre dans la maison donne le point.');
+    }else if(mine){
+      a=draw({x:shot.x*.4,y:Math.max(-60,shot.y-35)},'Placement pour un point de plus',`Vous comptez déjà ${myCount}. Une pierre de plus près du bouton ajoute un point.`);
+    }else{
+      const gd=guardOf(shot,st);
+      a=gd?draw({x:0,y:0},'Placement au bouton','La pierre adverse est gardée. Il faut passer à côté de la garde et finir plus près du bouton.')
+          :hit(shot,'Take-out de la pierre 1','Sortir la pierre adverse la plus proche fait marquer votre meilleure pierre, ou donne un bout nul.');
+    }
+  }else if(shot&&!mine){
+    const gd=guardOf(shot,st);
+    if(gd&&(fgz||gd.team===opp))a=draw({x:shot.x*.5,y:Math.min(shot.y,30)},'Come-around',(fgz&&gd.team===opp?'La règle de la zone des gardes protège la garde adverse. ':'La pierre adverse est gardée. ')+'Contournez la garde pour finir plus près du bouton.');
+    else if(house.filter(s=>s.team===opp).length>=2&&mode!=='def'&&!fgz)a=hit(shot,'Take-out de la pierre 1',`L’adversaire a ${house.filter(s=>s.team===opp).length} pierres dans la maison. Sortez la plus proche avant qu’il ne s’installe.`);
+    else a=hit(shot,'Take-out de la pierre 1','L’adversaire a la pierre la plus proche du bouton et elle n’est pas gardée.');
+  }else if(shot&&mine){
+    const gd=guardOf(shot,st),oppIn=house.filter(s=>s.team===opp);
+    if(mode==='def'&&oppIn.length)a=hit(oppIn[0],'Take-out','Vous menez en fin de partie : gardez la maison propre en sortant les pierres adverses.');
+    else if(mode==='def'&&oppGuards.length&&!fgz)a=hit(oppGuards[0],'Peel de la garde','Vous menez en fin de partie : enlevez les gardes pour empêcher l’adversaire de se cacher.');
+    else if(!gd)a=guard({x:shot.x,y:Math.min(HOG-70,Math.max(shot.y+250,HOUSE+R+40))},'Garde sur votre pierre','Vous avez la pierre la plus proche du bouton. Une garde devant la protège des take-outs.');
+    else a=draw({x:shot.x*.4,y:Math.max(-50,shot.y-35)},'Placement pour une 2e pierre','Votre pierre est déjà gardée. Ajoutez une pierre dans la maison pour compter plus.');
+  }else{
+    const cg=myGuards.find(s=>Math.abs(s.x)<60)||null,side=myGuards.find(s=>Math.abs(s.x)>=60)||null,ocg=oppGuards.find(s=>Math.abs(s.x)<60)||null;
+    if(mode==='def'){
+      if(oppGuards.length&&!fgz)a=hit(oppGuards[0],'Peel de la garde','Vous menez en fin de partie : enlevez les gardes pour garder le jeu ouvert.');
+      else a=draw({x:0,y:140},'Placement en haut de la maison','Vous menez en fin de partie : une pierre en haut de la maison, sans garde, garde le jeu simple.');
+    }else if(k<4&&(mode==='force'||mode==='att')){
+      if(cg)a=draw({x:cg.x*.3,y:40},'Come-around derrière votre garde','Votre garde au centre est en place. Cachez une pierre derrière pour forcer l’adversaire.');
+      else a=guard({x:0,y:330},'Garde au centre',mode==='att'?'Vous êtes mené en fin de partie : il faut bloquer le centre pour voler des points.':'Sans le marteau, une garde au centre vise à voler un point ou à forcer l’adversaire à n’en marquer qu’un.');
+    }else if(k<4){
+      if(ocg&&fgz)a=draw({x:ocg.x>=0?-90:90,y:60},'Placement sur le côté','La garde adverse au centre est protégée par la règle de la zone des gardes. Jouez sur le côté de la maison.');
+      else if(side)a=draw({x:side.x*.7,y:60},'Come-around derrière la garde de coin','Votre garde de coin est en place. Cachez une pierre derrière pour préparer un bout à plusieurs points.');
+      else{const lr=st.filter(s=>s.x<0).length<=st.filter(s=>s.x>=0).length?-1:1;a=guard({x:lr*115,y:330},'Garde de coin','Avec le marteau, une garde de coin prépare un bout à 2 points ou plus, en gardant le centre ouvert.')}
+    }else{
+      const c=[...myGuards,...oppGuards].find(s=>Math.abs(s.x)<70);
+      a=c?draw({x:c.x*.4,y:30},'Come-around','Utilisez la garde pour cacher une pierre près du bouton.'):draw({x:0,y:15},'Placement au bouton','La maison est vide : placez une pierre au bouton.');
+    }
+  }
+  /* Adaptation au lanceur */
+  const pl=g[team].players.find(p=>p.id===ui.playerId),prof=playerProfile(ui.playerId),nm=pl?pName(pl,g[team].players.indexOf(pl)):'Le joueur';
+  if(prof){
+    if(a.type==='sortie'&&a.hitId&&prof.sortie!=null&&prof.sortie<55&&prof.placement!=null&&prof.placement>=prof.sortie+15){
+      a={type:'placement',title:'Placement au bouton',target:freeSpot({x:0,y:0},st),why:[`${nm} réussit mieux ses placements (${prof.placement} %) que ses take-outs (${prof.sortie} %) : finir plus près du bouton est plus sûr que sortir la pierre.`]};
+    }else if(prof[a.type]!=null)a.why.push(`${nm} : ${prof[a.type]} % en ${typeLabel(a.type).toLowerCase()}.`);
+  }
+  /* Sens de rotation : selon le côté de la cible, ou le meilleur turn du joueur */
+  const hand=pl&&pl.hand==='L'?'L':'R';let turn=null,tw='';
+  if(prof&&prof.in!=null&&prof.out!=null&&Math.abs(prof.in-prof.out)>=15){turn=prof.in>prof.out?'in':'out';tw=`son ${turnLabel(turn).toLowerCase()} est plus fiable (${prof[turn]} %)`}
+  else if(a.type!=='sortie'&&Math.abs(a.target.x)>25){const right=a.target.x>0;turn=(right!==(hand==='L'))?'in':'out';tw=`la pierre doit tourner vers la ${right?'droite':'gauche'}`}
+  a.turn=turn;a.turnWhy=tw;a.ctx=ctx;
+  return a;
+}
+function adviceSVG(a,g){
+  if(!a)return'';let h='';
+  if(a.hitId){const t=a.target;h+=`<g transform="translate(${t.x} ${t.y})" pointer-events="none"><circle r="${R+9}" fill="none" stroke="#E07B2F" stroke-width="4" stroke-dasharray="7 5"/><path d="M-9-9L9 9M9-9L-9 9" stroke="#E07B2F" stroke-width="4" stroke-linecap="round"/></g>`}
+  else if(a.target.y>-160){const t=a.target;h+=`<g transform="translate(${r1(t.x)} ${r1(t.y)})" pointer-events="none"><circle r="${R}" fill="${colorOf(g,ui.team)}" fill-opacity=".35" stroke="#E07B2F" stroke-width="3" stroke-dasharray="6 4"/></g>`}
+  return h;
+}
+
 let screen='home',edit=null,ng=null,rp=null,settingsBack='home',ice=null;
 let gameCam={set:false},rpCam={set:false};
 let ui={};
@@ -319,7 +421,7 @@ function resetShot(){
   stopChrono();
   const g=curGame();if(!g)return;const e=lastEnd(g);
   const nt=e.score?{team:'A',playerId:null}:nextThrow(g,e);
-  ui={step:stepsFor()[0],type:null,turn:null,turnAuto:false,rot:null,team:nt.team,playerId:nt.playerId,broom:null,want:null,hog:'',note:null,stones:currentStones(e),before:currentStones(e),thrownId:null,selected:null,practice:false,menu:false,forceEnd:false};
+  ui={adv:null,step:stepsFor()[0],type:null,turn:null,turnAuto:false,rot:null,team:nt.team,playerId:nt.playerId,broom:null,want:null,hog:'',note:null,stones:currentStones(e),before:currentStones(e),thrownId:null,selected:null,practice:false,menu:false,forceEnd:false};
 }
 function shotMode(){const g=curGame();if(!g)return false;const e=lastEnd(g);return !e.score&&!ui.forceEnd&&e.shots.length<maxStones(g)}
 /* Sens déduit : la pierre courbe du côté de sa rotation. Position voulue à droite de la brosse = rotation horaire,
@@ -465,6 +567,7 @@ ${sw('want','Position voulue','Où la pierre devait s’arrêter')}
 ${sw('chrono','Chrono hog à hog','Le temps de la pierre entre les deux hog lines')}
 ${sw('note','Note de 0 à 4','La méthode officielle, avec un pourcentage par joueur')}
 ${sw('types','Type de lancer','Choisir placement, garde ou take-out')}
+${sw('advice','Conseil','Un bouton sur la glace suggère un lancer selon la situation et les forces du joueur')}
 ${sw('rot','Compter les rotations',s.rot?`Le sens et le nombre de tours. <button class="inline" data-act="rotMethod">Méthode : ${ROT_METHOD[s.rotMethod]} ⇄</button>`:'Le sens (in-turn ou out-turn) et le nombre de tours')}
 </div>
 
@@ -577,8 +680,10 @@ function renderGame(){
 <svg id="ice" aria-label="Glace de curling">${sheetBase()}<g id="dyn"></g></svg>
 <div class="ov ov-top">${topScore(g)}</div>
 <button class="refit" data-act="refit">Recadrer</button>
+<button class="advbtn" data-act="advice" hidden>Conseil</button>
+<div class="advcard" id="advcard" hidden></div>
 <div class="ov ov-bot" id="panel"></div></div>`;
-  ice=makeIce($('#ice'),{cam:gameCam,region:HOUSE_FIT,insets:()=>({t:$('.ov-top').offsetHeight,b:$('#panel').offsetHeight}),
+  ice=makeIce($('#ice'),{cam:gameCam,region:HOUSE_FIT,insets:()=>{const ac=$('#advcard');return{t:$('.ov-top').offsetHeight+(ac&&!ac.hidden?ac.offsetHeight+10:0),b:$('#panel').offsetHeight}},
     onTap:gameTap,onDown:gameDown,onMove:gameMove,onUp:gameUp,onCancel:gameCancel,pan:()=>true});
   drawDyn();renderPanel();
   requestAnimationFrame(()=>{if(!ice)return;if(!gameCam.set)ice.fit();else ice.apply()});
@@ -592,6 +697,7 @@ function drawDyn(){
   for(const s of stones)h+=stoneSVG(s,colorOf(g,s.team),{thrown:sm&&s.id===ui.thrownId,selected:sm&&s.id===ui.selected,measure:tie&&(tie.a.id===s.id||tie.b.id===s.id)});
   ranked(stones,ms).forEach((s,i)=>h+=rankSVG(s,i+1));
   if(sm){if(ui.broom)h+=broomSVG(ui.broom);if(ui.want)h+=targetSVG(ui.want)}
+  if(sm&&advOn&&db.settings.advice){ui.adv=ui.adv||advise(g,e);h+=adviceSVG(ui.adv,g)}
   d.innerHTML=h;
 }
 function renderPanel(){
@@ -602,6 +708,11 @@ function renderPanel(){
   else h+=shotPanel(g,e);
   el.innerHTML=`<div class="inner">${h}</div>`;
   const rf=$('.refit');if(rf)rf.style.bottom=(el.offsetHeight+10)+'px';
+  const ab=$('.advbtn'),ac=$('#advcard'),showAdv=db.settings.advice&&shotMode();
+  if(ab){ab.hidden=!showAdv;ab.style.bottom=(el.offsetHeight+10)+'px';ab.classList.toggle('on',advOn);ab.setAttribute('aria-pressed',advOn)}
+  if(ac){if(showAdv&&advOn){const a=ui.adv||(ui.adv=advise(g,e));const top=$('.ov-top');ac.style.top=((top?top.offsetHeight:50)+8)+'px';
+    ac.innerHTML=`<div class="advh"><b>${esc(a.title)}</b><span>${typeLabel(a.type)}${a.turn?`, ${turnLabel(a.turn).toLowerCase()}`:''}</span></div><p class="advctx">${esc(a.ctx)}</p><ul>${a.why.map(w=>`<li>${esc(w)}</li>`).join('')}${a.turn?`<li>${turnLabel(a.turn)} conseillé : ${esc(a.turnWhy)}.</li>`:''}</ul>`;ac.hidden=false}
+    else ac.hidden=true}
 }
 function shotPanel(g,e){
   const max=maxStones(g),ps=g[ui.team].players,running=chrono.t0!=null,S=db.settings;
@@ -915,6 +1026,7 @@ const ACT={
   rotMethod:(v,el,ev)=>{ev.preventDefault();db.settings.rotMethod=db.settings.rotMethod==='hog'?'lacher':'hog';save();renderSettings()},
   openSettings:v=>{settingsBack=v||'home';ui.menu=false;go('settings')},
   refit:()=>{if(ice)ice.fit()},
+  advice:()=>{advOn=!advOn;drawDyn();renderPanel();if(ice)ice.fit()},
   newTeam:()=>{edit={id:uid(),isNew:true,name:'',color:COLORS[0][1],adversaire:false,players:[0,1,2,3].map(()=>blankPlayer())};go('team')},
   editTeam:v=>{const t=db.teams.find(x=>x.id===v);if(!t)return;edit={...clone(t),isNew:false};go('team')},
   color:v=>{edit.color=v;renderTeamEdit()},
@@ -974,7 +1086,7 @@ const IN={
 const CH={
   ngTeam:el=>{ng.teamId=el.value;if(ng.oppId===el.value)ng.oppId='';renderNew()},
   ngOpp:el=>{ng.oppId=el.value;renderNew()},
-  thrower:el=>{ui.playerId=el.value;autoTurn();renderPanel()},
+  thrower:el=>{ui.playerId=el.value;ui.adv=null;autoTurn();drawDyn();renderPanel()},
   setting:el=>{const k=el.dataset.k;db.settings[k]=el.checked;save();if(ui.stones&&!ui.thrownId&&!ui.broom&&!ui.want)ui.step=stepsFor()[0];if(ui.stones&&k==='types')ui.type=null;if(k==='rot')renderSettings()},
   import:el=>{if(el.files[0])importData(el.files[0]);el.value=''}
 };
