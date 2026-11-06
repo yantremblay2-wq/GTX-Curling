@@ -714,15 +714,20 @@ function makeIce(svg,opt){
     const ins=opt.insets?opt.insets():{t:0,b:0},lo=BACK-15+h/2-ins.t/st.s,hi=HOG+40-h/2+ins.b/st.s;
     st.cy=hi<lo?lo:Math.max(lo,Math.min(hi,st.cy));svg.setAttribute('viewBox',`${r1(st.cx-w/2)} ${r1(st.cy-h/2)} ${r1(w)} ${r1(h)}`)}
   function fit(){
-    const{W,H}=size();if(!W||!H)return;const ins=opt.insets?opt.insets():{t:0,b:0};const reg=opt.region;
+    const{W,H}=size();if(!W||!H)return;const ins=opt.insets?opt.insets():{t:0,b:0};const reg=region();
     const fh=Math.max(120,H-ins.t-ins.b);
     st.s=clampS(fitScale());st.cx=(reg.x0+reg.x1)/2;st.cy=(reg.y0+reg.y1)/2-((ins.t+fh/2)-H/2)/st.s;st.set=true;apply();
   }
   const world=(cx,cy)=>{const{W,H,r}=size();return{x:st.cx+(cx-r.left-W/2)/st.s,y:st.cy+(cy-r.top-H/2)/st.s}};
   /* Zoom arrière : jamais plus loin que la largeur de la glace */
-  function fitScale(){const{W,H}=size();const ins=opt.insets?opt.insets():{t:0,b:0};const reg=opt.region;
-    const fh=Math.max(120,H-ins.t-ins.b);return Math.min(W/(reg.x1-reg.x0),fh/(reg.y1-reg.y0))}
-  const clampS=s=>{const{W}=size();return Math.min(14,Math.max(W/(2*W2+1),s))};
+  /* Écran large (ordinateur, tablette à l'horizontale) : la glace s'ajuste à la hauteur et montre tout, de la back line à la hog line.
+     Écran étroit (téléphone) : la maison remplit la largeur, comme avant. */
+  const FULL={x0:-W2-1,x1:W2+1,y0:BACK-15,y1:HOG+40};
+  function avail(){const{W,H}=size();const ins=opt.insets?opt.insets():{t:0,b:0};return{W,fh:Math.max(120,H-ins.t-ins.b)}}
+  function wide(){const{W,fh}=avail();return W>fh*0.9}
+  function region(){return wide()?FULL:opt.region}
+  function fitScale(){const{W,fh}=avail();const reg=region();return Math.min(W/(reg.x1-reg.x0),fh/(reg.y1-reg.y0))}
+  const clampS=s=>{const{W,fh}=avail();const sw=W/(2*W2+1),sf=fh/(FULL.y1-FULL.y0);return Math.min(14,Math.max(wide()?Math.min(sw,sf):sw,s))};
   svg.addEventListener('pointerdown',e=>{
     e.preventDefault();try{svg.setPointerCapture(e.pointerId)}catch(_){}
     ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
