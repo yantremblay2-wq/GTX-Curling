@@ -122,11 +122,18 @@ input[type=range]{padding:0;border:0;background:none;accent-color:var(--blue);ma
 .refit{position:absolute;right:calc(env(safe-area-inset-right,0px) + 12px);bottom:300px;border:1px solid var(--line);background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:20px;padding:7px 13px;font-size:.85rem;font-weight:600;color:var(--ink)}
 .advbtn{position:absolute;left:calc(env(safe-area-inset-left,0px) + 12px);bottom:300px;border:1px solid #E07B2F;background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:20px;padding:7px 14px;font-size:.85rem;font-weight:700;color:#C2621B}
 .advbtn.on{background:#E07B2F;color:#fff}
-.advcard{position:absolute;left:10px;right:10px;max-width:520px;margin:0 auto;background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--line);border-left:5px solid #E07B2F;border-radius:0;padding:10px 12px;font-size:.88rem;line-height:1.35}
-.advh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.advcard{position:absolute;left:10px;right:10px;width:fit-content;max-width:min(520px,calc(100% - 20px));margin:0 auto;background:rgba(248,251,252,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid var(--line);border-left:5px solid #E07B2F;border-radius:0;font-size:.88rem;line-height:1.35;color:var(--ink)}
+@media (prefers-color-scheme:dark){.advcard{background:rgba(22,35,50,.74)}}
+.advcard.open{width:auto}
+.advh{display:flex;align-items:baseline;gap:10px;width:100%;border:0;background:none;padding:7px 10px 7px 12px;text-align:left;cursor:pointer}
+.advh b{flex:1}
+.advh .chev{width:14px;height:14px;flex:none;align-self:center;color:var(--muted);transition:transform .15s}
+.advcard.open .chev{transform:rotate(180deg)}
+.advbody{padding:0 12px 10px}
+@media (prefers-reduced-motion:reduce){.advh .chev{transition:none}}
 .advh b{font-family:var(--cond);font-size:1.3rem}
 .advh span{font-size:.8rem;font-weight:600;color:#C2621B;white-space:nowrap}
-.advctx{margin:2px 0 4px;font-size:.78rem;color:var(--muted)}
+.advctx{margin:0 0 4px;font-size:.78rem;color:var(--muted)}
 .advcard ul{margin:0;padding-left:18px}
 .advcard li+li{margin-top:3px}
 .sb{flex:1;display:grid;grid-template-columns:1fr auto auto auto 1fr;align-items:center;gap:8px;min-width:0}
@@ -547,7 +554,7 @@ function endScore(g,e){const st=currentStones(e);return g.mode==='competition'?s
 
 /* ---------- État de l'interface ---------- */
 let pv=null;
-let advOn=false;
+let advOn=false,advOpen=false;
 
 /* ================= Conseil : règles de stratégie =================
    Se base sur : le marteau, le pointage, les bouts restants, la zone des gardes (règle des 5 pierres)
@@ -958,7 +965,7 @@ function renderGame(){
 <button class="advbtn" data-act="advice" hidden>Conseil</button>
 <div class="advcard" id="advcard" hidden></div>
 <div class="ov ov-bot" id="panel"></div></div>`;
-  ice=makeIce($('#ice'),{cam:gameCam,region:HOUSE_FIT,insets:()=>{const ac=$('#advcard');return{t:$('.ov-top').offsetHeight+(ac&&!ac.hidden?ac.offsetHeight+10:0),b:$('#panel').offsetHeight}},
+  ice=makeIce($('#ice'),{cam:gameCam,region:HOUSE_FIT,insets:()=>({t:$('.ov-top').offsetHeight,b:$('#panel').offsetHeight}),
     onTap:gameTap,onDown:gameDown,onMove:gameMove,onUp:gameUp,onCancel:gameCancel,pan:()=>true});
   drawDyn();renderPanel();
   requestAnimationFrame(()=>{if(!ice)return;if(!gameCam.set)ice.fit();else ice.apply()});
@@ -986,7 +993,8 @@ function renderPanel(){
   const ab=$('.advbtn'),ac=$('#advcard'),showAdv=db.settings.advice&&shotMode();
   if(ab){ab.hidden=!showAdv;ab.style.bottom=(el.offsetHeight+10)+'px';ab.classList.toggle('on',advOn);ab.setAttribute('aria-pressed',advOn)}
   if(ac){if(showAdv&&advOn){const a=ui.adv||(ui.adv=advise(g,e));const top=$('.ov-top');ac.style.top=((top?top.offsetHeight:50)+8)+'px';
-    ac.innerHTML=`<div class="advh"><b>${esc(a.title)}</b><span>${typeLabel(a.type)}${a.turn?`, ${turnLabel(a.turn).toLowerCase()}`:''}</span></div><p class="advctx">${esc(a.ctx)}</p><ul>${a.why.map(w=>`<li>${esc(w)}</li>`).join('')}${a.turn?`<li>${turnLabel(a.turn)} conseillé : ${esc(a.turnWhy)}.</li>`:''}</ul>`;ac.hidden=false}
+    ac.classList.toggle('open',advOpen);
+    ac.innerHTML=`<button class="advh" data-act="advOpen" aria-expanded="${advOpen}"><b>${esc(a.title)}</b><span>${typeLabel(a.type)}${a.turn?`, ${turnLabel(a.turn).toLowerCase()}`:''}</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${advOpen?`<div class="advbody"><p class="advctx">${esc(a.ctx)}</p><ul>${a.why.map(w=>`<li>${esc(w)}</li>`).join('')}${a.turn?`<li>${turnLabel(a.turn)} conseillé : ${esc(a.turnWhy)}.</li>`:''}</ul></div>`:''}`;ac.hidden=false}
     else ac.hidden=true}
 }
 function shotPanel(g,e){
@@ -1304,7 +1312,8 @@ const ACT={
   rotMethod:(v,el,ev)=>{ev.preventDefault();db.settings.rotMethod=db.settings.rotMethod==='hog'?'lacher':'hog';save();renderSettings()},
   openSettings:v=>{settingsBack=v||'home';ui.menu=false;go('settings')},
   refit:()=>{if(ice)ice.fit()},
-  advice:()=>{advOn=!advOn;drawDyn();renderPanel();if(ice)ice.fit()},
+  advice:()=>{advOn=!advOn;drawDyn();renderPanel()},
+  advOpen:()=>{advOpen=!advOpen;renderPanel()},
   newTeam:()=>{edit={id:uid(),isNew:true,name:'',color:COLORS[0][1],adversaire:false,players:[0,1,2,3].map(()=>blankPlayer())};go('team')},
   editTeam:v=>{const t=db.teams.find(x=>x.id===v);if(!t)return;edit={...clone(t),isNew:false};go('team')},
   color:v=>{edit.color=v;renderTeamEdit()},
