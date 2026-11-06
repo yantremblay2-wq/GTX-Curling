@@ -350,6 +350,8 @@ const E={
 'Sauvegarde impossible sur cet appareil':'Can’t save on this device',
 'Annuler le dernier lancer':'Undo last shot','Terminer le bout maintenant':'End the end now','Terminer la partie':'Finish game',
 'Les chiffres sur les pierres montrent l’ordre à partir du bouton.':'The numbers on the stones show their order from the button.',
+'Les chiffres sur les pierres montrent l’ordre à partir du bouton. Mesure faite : touchez l’autre pierre encerclée pour changer d’avis.':'The numbers on the stones show their order from the button. Measured: tap the other circled stone to change your call.',
+'Mesure changée':'Measure changed',
 'Continuer le bout':'Continue the end','Mesure':'Measure','Confirmer le bout':'Confirm end',
 'Bout nul, aucune pierre dans la maison.':'Blank end, no stones in the house.',
 'Tous les bouts sont joués':'All ends played','Jouer un bout supplémentaire':'Play an extra end',
@@ -973,9 +975,10 @@ function drawDyn(){
   const g=curGame();const d=$('#dyn');if(!g||!d)return;const e=lastEnd(g);const sm=shotMode();
   const stones=sm?ui.stones:currentStones(e);const ms=e.measures||[];
   const tie=!sm&&!e.score&&g.mode==='competition'?firstTie(stones,ms):null;
+  const meas=!sm&&!e.score&&!tie&&g.mode==='competition'?ms.find(m=>validM(m,stones)):null;
   let h='';
   if(sm&&ui.want){const th=ui.stones.find(s=>s.id===ui.thrownId);if(th)h+=lineSVG(ui.want,th)}
-  for(const s of stones)h+=stoneSVG(s,colorOf(g,s.team),{thrown:sm&&s.id===ui.thrownId,selected:sm&&s.id===ui.selected,measure:tie&&(tie.a.id===s.id||tie.b.id===s.id)});
+  for(const s of stones)h+=stoneSVG(s,colorOf(g,s.team),{thrown:sm&&s.id===ui.thrownId,selected:sm&&s.id===ui.selected,measure:(tie&&(tie.a.id===s.id||tie.b.id===s.id))||(meas&&(meas.closer.id===s.id||meas.farther.id===s.id))});
   ranked(stones,ms).forEach((s,i)=>h+=rankSVG(s,i+1));
   if(sm){if(ui.broom)h+=broomSVG(ui.broom);if(ui.want)h+=targetSVG(ui.want)}
   if(sm&&advOn&&db.settings.advice){ui.adv=ui.adv||advise(g,e);h+=adviceSVG(ui.adv,g)}
@@ -1039,7 +1042,7 @@ function endPanel(g,e){
   const sc=endScore(g,e);let txt;
   if(g.mode==='competition')txt=sc.pts?`<b>${esc(g[sc.team].name)}</b> marque ${sc.pts} point${sc.pts>1?'s':''}.`:'Bout nul, aucune pierre dans la maison.';
   else txt=`${sc.inHouse} pierre${sc.inHouse>1?'s':''} dans la maison.`;
-  return `<div class="card"><h3>Fin du bout ${e.n}</h3><p>${txt}</p><p class="muted small">Les chiffres sur les pierres montrent l’ordre à partir du bouton.</p>
+  return `<div class="card"><h3>Fin du bout ${e.n}</h3><p>${txt}</p><p class="muted small">Les chiffres sur les pierres montrent l’ordre à partir du bouton.${g.mode==='competition'&&ms.some(m=>validM(m,st))?' Mesure faite : touchez l’autre pierre encerclée pour changer d’avis.':''}</p>
 <button class="btn primary" data-act="confirmEnd">${g.ends.length<g.endsPlanned?`Confirmer et passer au bout ${e.n+1}`:'Confirmer le bout'}</button>${foot}</div>`;
 }
 function finalPanel(g){
@@ -1063,7 +1066,11 @@ function gameTap(p){
   const pt={x:r1(p.x),y:r1(p.y)};
   if(!shotMode()){
     if(e.score||g.mode!=='competition')return;
-    const st=currentStones(e);e.measures=e.measures||[];const tie=firstTie(st,e.measures);if(!tie)return;
+    const st=currentStones(e);e.measures=e.measures||[];const tie=firstTie(st,e.measures);
+    if(!tie){const m=e.measures.find(m=>validM(m,st));if(!m)return;
+      const hit=hitStone(st,p,[st.find(x=>x.id===m.closer.id),st.find(x=>x.id===m.farther.id)]);if(!hit)return;
+      if(hit.id===m.farther.id){[m.closer,m.farther]=[m.farther,m.closer];save();drawDyn();renderPanel();toast('Mesure changée')}
+      return}
     const hit=hitStone(st,p,[tie.a,tie.b]);if(!hit)return toast('Touchez une des deux pierres encerclées');
     const other=hit.id===tie.a.id?tie.b:tie.a;const ref=s=>({id:s.id,x:s.x,y:s.y});
     e.measures.push({closer:ref(hit),farther:ref(other)});save();drawDyn();renderPanel();return;
@@ -1107,6 +1114,7 @@ function undo(){
   else if(!e.shots.length&&g.ends.length>1){g.ends.pop();e=lastEnd(g);delete e.score}
   else if(e.shots.length)e.shots.pop();
   else return toast('Aucun lancer à annuler');
+  e.measures=[];
   save();resetShot();renderGame();toast('Dernier lancer annulé');
 }
 function finishGame(){
