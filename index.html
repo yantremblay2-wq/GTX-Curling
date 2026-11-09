@@ -361,7 +361,12 @@ const E={
 'Come-around derrière votre garde':'Come-around behind your guard','Come-around derrière la garde de coin':'Come-around behind the corner guard',
 'Garde sur votre pierre':'Guard your stone','Bout nul':'Blank end','Peel de la garde':'Peel the guard','Placement au bouton':'Draw to the button',
 'Placement pour un point de plus':'Draw for an extra point','Placement pour une 2e pierre':'Draw a second stone','Placement en haut de la maison':'Draw to the top of the house',
-'Take-out de la pierre 1':'Take out stone 1',
+'Take-out de la pierre 1':'Take out stone 1','Freeze sur la pierre 1':'Freeze to stone 1','Placement dans la maison':'Draw into the house',
+'Impossible de passer pour sortir la pierre adverse ou finir plus près. Collez une pierre devant elle : l’adversaire aura du mal à la dégager.':'You can’t get past to remove the opponent’s stone or finish closer. Freeze a stone in front of it: the opponent will struggle to move it.',
+'Les pierres bloquent le chemin vers le bouton. Placez une pierre à l’endroit libre le plus proche du bouton.':'Stones block the path to the button. Draw to the open spot closest to the button.',
+'Le chemin vers la pierre adverse est bloqué. Contournez les pierres pour finir plus près du bouton.':'The path to the opponent’s stone is blocked. Curl around the stones to finish closer to the button.',
+'Le chemin vers la pierre adverse est bloqué. Enlevez la garde pour ouvrir le jeu.':'The path to the opponent’s stone is blocked. Peel the guard to open things up.',
+'Les pierres bloquent le chemin vers la maison. Placez une garde pour préparer le prochain lancer.':'Stones block the path to the house. Place a guard to set up the next shot.',
 'Sans le marteau, une garde au centre vise à voler un point ou à forcer l’adversaire à n’en marquer qu’un.':'Without hammer, a center guard aims to steal or force the opponent to take one.',
 'Avec le marteau, une garde de coin prépare un bout à 2 points ou plus, en gardant le centre ouvert.':'With hammer, a corner guard sets up a 2-point end or more while keeping the center open.',
 'La garde adverse au centre est protégée par la règle de la zone des gardes. Jouez sur le côté de la maison.':'The opponent’s center guard is protected by the free guard zone rule. Play to the side of the house.',
@@ -438,6 +443,7 @@ const RX=[
  [/^(.+) : (\d+) % en (placement|garde|take-out)\.$/,(m,n,p,t)=>`${core(n)??n}: ${p}% on ${TY[t]}s.`],
  [/^(.+) réussit mieux ses placements \((\d+) %\) que ses take-outs \((\d+) %\) : finir plus près du bouton est plus sûr que sortir la pierre\.$/,(m,n,a,b)=>`${core(n)??n} is stronger on draws (${a}%) than take-outs (${b}%): finishing closer to the button is safer than removing the stone.`],
  [/^(In-turn|Out-turn) conseillé : son (in-turn|out-turn) est plus fiable \((\d+) %\)\.$/,'$1 suggested: their $2 is more reliable ($3%).'],
+ [/^(In-turn|Out-turn) conseillé : seul ce côté évite les autres pierres\.$/,'$1 suggested: only this side avoids the other stones.'],
  [/^(In-turn|Out-turn) conseillé : la pierre doit tourner vers la (droite|gauche)\.$/,(m,a,b)=>`${a} suggested: the stone needs to curl ${SIDE[b]}.`],
  [/^L’adversaire a (\d+) pierres dans la maison\. Sortez la plus proche avant qu’il ne s’installe\.$/,'The opponent has $1 stones in the house. Remove the closest before they build an end.'],
  [/^Vous comptez déjà (\d+)\. Une pierre de plus près du bouton ajoute un point\.$/,'You’re already counting $1. Another stone closer to the button adds a point.'],
@@ -569,6 +575,20 @@ function playerProfile(pid){
   const trn=k=>{const r=A.byTurn.find(x=>x.k===k);return r&&r.notes.length>=3?pctOf(r.notes):null};
   return{placement:typ('placement'),garde:typ('garde'),sortie:typ('sortie'),in:trn('in'),out:trn('out')};
 }
+/* Trajectoire simplifiée d'une pierre : presque droite au départ, elle courbe surtout en fin de course.
+   dir = +1 : courbe vers la droite (rotation horaire), -1 : vers la gauche. C = courbe totale en cm. */
+const CURL={placement:110,garde:70,sortie:25};
+function pathPts(T,dir,C,n=40){const y0=HOG+120,pts=[];for(let i=0;i<=n;i++){const t=i/n;pts.push({x:T.x-dir*C*(1-t*t),y:y0+(T.y-y0)*t})}return pts}
+/* Le chemin est libre s'il reste sur la glace et passe à au moins 4 cm de chaque pierre (marge pour l'imprécision). Pour un take-out, on s'arrête au contact avec la pierre visée. */
+function pathClear(pts,stones,hitId){
+  const tgt=hitId?stones.find(s=>s.id===hitId):null;
+  for(const p of pts){
+    if(Math.abs(p.x)>W2-R)return false;
+    if(tgt&&Math.hypot(p.x-tgt.x,p.y-tgt.y)<2*R)return true;
+    for(const s of stones){if(s.id===hitId)continue;if(Math.hypot(p.x-s.x,p.y-s.y)<2*R+4)return false}
+  }
+  return true;
+}
 function advise(g,e){
   const team=ui.team,comp=g.mode==='competition',opp=comp?(team==='A'?'B':'A'):'X';
   const st=ui.before||[],k=e.shots.length,total=maxStones(g),isLast=k===total-1;
@@ -579,45 +599,75 @@ function advise(g,e){
   const house=st.filter(inHouse).map(s=>({...s,d:Math.hypot(s.x,s.y)})).sort((a,b)=>a.d-b.d);
   const shot=house[0]||null,mine=shot&&shot.team===team;
   const oppGuards=st.filter(s=>s.team===opp&&inFGZ(s)),myGuards=st.filter(s=>s.team===team&&inFGZ(s));
-  const why=[];
   const ctx=comp?(hammer?'Vous avez le marteau':'Vous n’avez pas le marteau')+(diff>0?`, en avance de ${diff}`:diff<0?`, mené de ${-diff}`:', à égalité')+(endsLeft===0?', dernier bout':endsLeft===1?', avant-dernier bout':''):'Entraînement';
-  let a=null;
-  const draw=(t,title,r)=>({type:'placement',title,target:freeSpot(t,st),why:[r]});
-  const guard=(t,title,r)=>({type:'garde',title,target:freeSpot(t,st),why:[r]});
-  const hit=(s,title,r)=>({type:'sortie',title,target:{x:s.x,y:s.y},hitId:s.id,why:[r]});
   const nOpp=house.findIndex(s=>s.team!==team);const myCount=nOpp<0?house.length:nOpp;
+  const firstOpp=nOpp<0?null:house[nOpp];
+
+  /* Lanceur : main et turn le plus fiable */
+  const pl=g[team].players.find(p=>p.id===ui.playerId),prof=playerProfile(ui.playerId),nm=pl?pName(pl,g[team].players.indexOf(pl)):'Le joueur';
+  const hand=pl&&pl.hand==='L'?'L':'R';
+  const turnOf=dir=>((dir>0)!==(hand==='L'))?'in':'out';
+  const prefTurn=prof&&prof.in!=null&&prof.out!=null&&Math.abs(prof.in-prof.out)>=15?(prof.in>prof.out?'in':'out'):null;
+  const dirOrder=()=>{const d=prefTurn?(turnOf(1)===prefTurn?1:-1):1;return[d,-d]};
+
+  /* Cherche, autour de la position voulue, un endroit libre que la pierre peut atteindre sans toucher d'autre pierre */
+  const free=c=>inPlay(c)&&st.every(s=>Math.hypot(c.x-s.x,c.y-s.y)>=2*R+1);
+  function reach(desired,type,opt={}){
+    let cands=opt.cands;
+    if(!cands){cands=[{x:desired.x,y:desired.y}];const maxR=opt.maxR??70;
+      for(let r=8;r<=maxR;r+=8)for(let a=0;a<360;a+=20)cands.push({x:desired.x+r*Math.cos(a*Math.PI/180),y:desired.y+r*Math.sin(a*Math.PI/180)})}
+    for(const c0 of cands){const c={x:r1(c0.x),y:r1(c0.y)};
+      if(!free(c)||(opt.ok&&!opt.ok(c)))continue;
+      const ds=dirOrder(),ok=ds.filter(d=>pathClear(pathPts(c,d,CURL[type]),st));
+      if(ok.length)return{target:c,dir:ok[0],both:ok.length===2}}
+    return null;
+  }
+  const mk=(type,title,r,why)=>r?{type,title,target:r.target,dir:r.dir,both:r.both,why:[why]}:null;
+  const draw=(t,title,why,opt)=>mk('placement',title,reach(t,'placement',opt),why);
+  const guard=(t,title,why,opt)=>mk('garde',title,reach(t,'garde',{maxR:60,ok:inFGZ,...opt}),why);
+  const hit=(s,title,why)=>{if(!s)return null;const ds=dirOrder().filter(d=>pathClear(pathPts(s,d,CURL.sortie),st,s.id));
+    return ds.length?{type:'sortie',title,target:{x:s.x,y:s.y},hitId:s.id,dir:ds[0],both:ds.length===2,why:[why]}:null};
+  /* Positions de la maison, de la plus proche du bouton à la plus loin */
+  const houseGrid=maxD=>{const c=[];for(let x=-180;x<=180;x+=8)for(let y=-180;y<=180;y+=8){const d=Math.hypot(x,y);if(d<=maxD)c.push({x,y,d})}return c.sort((a,b)=>a.d-b.d)};
+  const comeAround=(s,why)=>draw({x:0,y:0},'Come-around',why,{cands:houseGrid(s.d-4)});
+  const freeze=s=>{const c=[];for(const a of [0,15,-15,30,-30,45,-45,60,-60]){const r=a*Math.PI/180;c.push({x:s.x+(2*R+.6)*Math.sin(r),y:s.y+(2*R+.6)*Math.cos(r)})}
+    return draw(s,'Freeze sur la pierre 1','Impossible de passer pour sortir la pierre adverse ou finir plus près. Collez une pierre devant elle : l’adversaire aura du mal à la dégager.',{cands:c})};
+  const bestHouse=why=>draw({x:0,y:0},'Placement dans la maison',why||'Les pierres bloquent le chemin vers le bouton. Placez une pierre à l’endroit libre le plus proche du bouton.',{cands:houseGrid(HOUSE)});
+  const peel=(why)=>{for(const gd of oppGuards){const h=hit(gd,'Peel de la garde',why);if(h)return h}return null};
+  const blocked='Le chemin vers la pierre adverse est bloqué. ';
+  let a=null;
 
   if(isLast){
     if(!shot){
       a=comp&&hammer&&mode!=='def'&&endsLeft>0&&diff<=0
         ?{type:'sortie',title:'Bout nul',target:{x:0,y:-170},why:['La maison est vide : lancer à travers pour garder le marteau au prochain bout, plutôt que de marquer un seul point.']}
-        :draw({x:0,y:15},'Placement au bouton','Une pierre dans la maison donne le point.');
+        :(draw({x:0,y:15},'Placement au bouton','Une pierre dans la maison donne le point.')||bestHouse());
     }else if(mine){
-      a=draw({x:shot.x*.4,y:Math.max(-60,shot.y-35)},'Placement pour un point de plus',`Vous comptez déjà ${myCount}. Une pierre de plus près du bouton ajoute un point.`);
+      a=draw({x:0,y:0},'Placement pour un point de plus',`Vous comptez déjà ${myCount}. Une pierre de plus près du bouton ajoute un point.`,{cands:houseGrid(firstOpp?firstOpp.d-4:HOUSE)});
     }else{
-      const gd=guardOf(shot,st);
-      a=gd?draw({x:0,y:0},'Placement au bouton','La pierre adverse est gardée. Il faut passer à côté de la garde et finir plus près du bouton.')
-          :hit(shot,'Take-out de la pierre 1','Sortir la pierre adverse la plus proche fait marquer votre meilleure pierre, ou donne un bout nul.');
+      a=hit(shot,'Take-out de la pierre 1','Sortir la pierre adverse la plus proche fait marquer votre meilleure pierre, ou donne un bout nul.')
+        ||comeAround(shot,'La pierre adverse est gardée. Il faut passer à côté de la garde et finir plus près du bouton.');
     }
   }else if(shot&&!mine){
-    const gd=guardOf(shot,st);
-    if(gd&&(fgz||gd.team===opp))a=draw({x:shot.x*.5,y:Math.min(shot.y,30)},'Come-around',(fgz&&gd.team===opp?'La règle de la zone des gardes protège la garde adverse. ':'La pierre adverse est gardée. ')+'Contournez la garde pour finir plus près du bouton.');
-    else if(house.filter(s=>s.team===opp).length>=2&&mode!=='def'&&!fgz)a=hit(shot,'Take-out de la pierre 1',`L’adversaire a ${house.filter(s=>s.team===opp).length} pierres dans la maison. Sortez la plus proche avant qu’il ne s’installe.`);
-    else a=hit(shot,'Take-out de la pierre 1','L’adversaire a la pierre la plus proche du bouton et elle n’est pas gardée.');
+    const gd=guardOf(shot,st),nIn=house.filter(s=>s.team===opp).length;
+    const caWhy=(fgz&&gd&&gd.team===opp?'La règle de la zone des gardes protège la garde adverse. ':'La pierre adverse est gardée. ')+'Contournez la garde pour finir plus près du bouton.';
+    const hitWhy=nIn>=2&&mode!=='def'?`L’adversaire a ${nIn} pierres dans la maison. Sortez la plus proche avant qu’il ne s’installe.`:'L’adversaire a la pierre la plus proche du bouton et elle n’est pas gardée.';
+    a=(gd?(comeAround(shot,caWhy)||hit(shot,'Take-out de la pierre 1',hitWhy)):(hit(shot,'Take-out de la pierre 1',hitWhy)||comeAround(shot,blocked+'Contournez les pierres pour finir plus près du bouton.')))
+      ||freeze(shot)||(!fgz?peel(blocked+'Enlevez la garde pour ouvrir le jeu.'):null);
   }else if(shot&&mine){
     const gd=guardOf(shot,st),oppIn=house.filter(s=>s.team===opp);
-    if(mode==='def'&&oppIn.length)a=hit(oppIn[0],'Take-out','Vous menez en fin de partie : gardez la maison propre en sortant les pierres adverses.');
-    else if(mode==='def'&&oppGuards.length&&!fgz)a=hit(oppGuards[0],'Peel de la garde','Vous menez en fin de partie : enlevez les gardes pour empêcher l’adversaire de se cacher.');
-    else if(!gd)a=guard({x:shot.x,y:Math.min(HOG-70,Math.max(shot.y+250,HOUSE+R+40))},'Garde sur votre pierre','Vous avez la pierre la plus proche du bouton. Une garde devant la protège des take-outs.');
-    else a=draw({x:shot.x*.4,y:Math.max(-50,shot.y-35)},'Placement pour une 2e pierre','Votre pierre est déjà gardée. Ajoutez une pierre dans la maison pour compter plus.');
+    if(mode==='def'&&oppIn.length)for(const s of oppIn){a=hit(s,'Take-out','Vous menez en fin de partie : gardez la maison propre en sortant les pierres adverses.');if(a)break}
+    if(!a&&mode==='def'&&!fgz)a=peel('Vous menez en fin de partie : enlevez les gardes pour empêcher l’adversaire de se cacher.');
+    if(!a&&!gd)a=guard({x:shot.x,y:Math.min(HOG-70,Math.max(shot.y+250,HOUSE+R+40))},'Garde sur votre pierre','Vous avez la pierre la plus proche du bouton. Une garde devant la protège des take-outs.');
+    if(!a)a=draw({x:0,y:0},'Placement pour une 2e pierre','Votre pierre est déjà gardée. Ajoutez une pierre dans la maison pour compter plus.',{cands:houseGrid(firstOpp?firstOpp.d-4:HOUSE)});
   }else{
     const cg=myGuards.find(s=>Math.abs(s.x)<60)||null,side=myGuards.find(s=>Math.abs(s.x)>=60)||null,ocg=oppGuards.find(s=>Math.abs(s.x)<60)||null;
     if(mode==='def'){
-      if(oppGuards.length&&!fgz)a=hit(oppGuards[0],'Peel de la garde','Vous menez en fin de partie : enlevez les gardes pour garder le jeu ouvert.');
-      else a=draw({x:0,y:140},'Placement en haut de la maison','Vous menez en fin de partie : une pierre en haut de la maison, sans garde, garde le jeu simple.');
+      a=(!fgz?peel('Vous menez en fin de partie : enlevez les gardes pour garder le jeu ouvert.'):null)
+        ||draw({x:0,y:140},'Placement en haut de la maison','Vous menez en fin de partie : une pierre en haut de la maison, sans garde, garde le jeu simple.');
     }else if(k<4&&(mode==='force'||mode==='att')){
-      if(cg)a=draw({x:cg.x*.3,y:40},'Come-around derrière votre garde','Votre garde au centre est en place. Cachez une pierre derrière pour forcer l’adversaire.');
-      else a=guard({x:0,y:330},'Garde au centre',mode==='att'?'Vous êtes mené en fin de partie : il faut bloquer le centre pour voler des points.':'Sans le marteau, une garde au centre vise à voler un point ou à forcer l’adversaire à n’en marquer qu’un.');
+      a=cg?draw({x:cg.x*.3,y:40},'Come-around derrière votre garde','Votre garde au centre est en place. Cachez une pierre derrière pour forcer l’adversaire.')
+          :guard({x:0,y:330},'Garde au centre',mode==='att'?'Vous êtes mené en fin de partie : il faut bloquer le centre pour voler des points.':'Sans le marteau, une garde au centre vise à voler un point ou à forcer l’adversaire à n’en marquer qu’un.');
     }else if(k<4){
       if(ocg&&fgz)a=draw({x:ocg.x>=0?-90:90,y:60},'Placement sur le côté','La garde adverse au centre est protégée par la règle de la zone des gardes. Jouez sur le côté de la maison.');
       else if(side)a=draw({x:side.x*.7,y:60},'Come-around derrière la garde de coin','Votre garde de coin est en place. Cachez une pierre derrière pour préparer un bout à plusieurs points.');
@@ -627,22 +677,32 @@ function advise(g,e){
       a=c?draw({x:c.x*.4,y:30},'Come-around','Utilisez la garde pour cacher une pierre près du bouton.'):draw({x:0,y:15},'Placement au bouton','La maison est vide : placez une pierre au bouton.');
     }
   }
+  /* Rien de possible avec le plan prévu : la place libre la plus proche du bouton, sinon une garde */
+  if(!a)a=bestHouse()||guard({x:0,y:330},'Garde au centre','Les pierres bloquent le chemin vers la maison. Placez une garde pour préparer le prochain lancer.',{maxR:150})
+         ||{type:'placement',title:'Placement dans la maison',target:{x:0,y:0},why:['Les pierres bloquent le chemin vers le bouton. Placez une pierre à l’endroit libre le plus proche du bouton.']};
+
   /* Adaptation au lanceur */
-  const pl=g[team].players.find(p=>p.id===ui.playerId),prof=playerProfile(ui.playerId),nm=pl?pName(pl,g[team].players.indexOf(pl)):'Le joueur';
   if(prof){
     if(a.type==='sortie'&&a.hitId&&prof.sortie!=null&&prof.sortie<55&&prof.placement!=null&&prof.placement>=prof.sortie+15){
-      a={type:'placement',title:'Placement au bouton',target:freeSpot({x:0,y:0},st),why:[`${nm} réussit mieux ses placements (${prof.placement} %) que ses take-outs (${prof.sortie} %) : finir plus près du bouton est plus sûr que sortir la pierre.`]};
+      const tgt=st.find(s=>s.id===a.hitId),alt=tgt&&tgt.team!==team&&inHouse(tgt)?comeAround({...tgt,d:Math.hypot(tgt.x,tgt.y)},''):null;
+      if(alt){alt.title='Placement au bouton';alt.why=[`${nm} réussit mieux ses placements (${prof.placement} %) que ses take-outs (${prof.sortie} %) : finir plus près du bouton est plus sûr que sortir la pierre.`];a=alt}
     }else if(prof[a.type]!=null)a.why.push(`${nm} : ${prof[a.type]} % en ${typeLabel(a.type).toLowerCase()}.`);
   }
-  /* Sens de rotation : selon le côté de la cible, ou le meilleur turn du joueur */
-  const hand=pl&&pl.hand==='L'?'L':'R';let turn=null,tw='';
-  if(prof&&prof.in!=null&&prof.out!=null&&Math.abs(prof.in-prof.out)>=15){turn=prof.in>prof.out?'in':'out';tw=`son ${turnLabel(turn).toLowerCase()} est plus fiable (${prof[turn]} %)`}
-  else if(a.type!=='sortie'&&Math.abs(a.target.x)>25){const right=a.target.x>0;turn=(right!==(hand==='L'))?'in':'out';tw=`la pierre doit tourner vers la ${right?'droite':'gauche'}`}
+  /* Sens de rotation : celui dont le chemin est libre */
+  let turn=null,tw='';
+  if(a.dir!=null){turn=turnOf(a.dir);
+    if(!a.both)tw='seul ce côté évite les autres pierres';
+    else if(prefTurn&&turn===prefTurn)tw=`son ${turnLabel(turn).toLowerCase()} est plus fiable (${prof[turn]} %)`;
+    else if(a.type!=='sortie'&&Math.abs(a.target.x)>25){const right=a.target.x>0;turn=turnOf(right?1:-1);a.dir=right?1:-1;tw=`la pierre doit tourner vers la ${right?'droite':'gauche'}`}
+    else{turn=null}}
   a.turn=turn;a.turnWhy=tw;a.ctx=ctx;
   return a;
 }
 function adviceSVG(a,g){
   if(!a)return'';let h='';
+  if(a.dir!=null&&a.target.y>-160){let pts=pathPts(a.target,a.dir,CURL[a.type]);
+    if(a.hitId){const i=pts.findIndex(p=>Math.hypot(p.x-a.target.x,p.y-a.target.y)<2*R);if(i>0)pts=pts.slice(0,i+1)}
+    h+=`<polyline points="${pts.map(p=>r1(p.x)+','+r1(p.y)).join(' ')}" fill="none" stroke="#E07B2F" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round" opacity=".9" pointer-events="none"/>`}
   if(a.hitId){const t=a.target;h+=`<g transform="translate(${t.x} ${t.y})" pointer-events="none"><circle r="${R+9}" fill="none" stroke="#E07B2F" stroke-width="4" stroke-dasharray="7 5"/><path d="M-9-9L9 9M9-9L-9 9" stroke="#E07B2F" stroke-width="4" stroke-linecap="round"/></g>`}
   else if(a.target.y>-160){const t=a.target;h+=`<g transform="translate(${r1(t.x)} ${r1(t.y)})" pointer-events="none"><circle r="${R}" fill="${colorOf(g,ui.team)}" fill-opacity=".35" stroke="#E07B2F" stroke-width="3" stroke-dasharray="6 4"/></g>`}
   return h;
