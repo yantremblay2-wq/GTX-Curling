@@ -314,7 +314,7 @@ const E={
 'Placez le point de lâcher de chaque joueur en fauteuil':'Set the release point for each wheelchair player','Équipe enregistrée':'Team saved','Donnez un nom à l’équipe':'Give the team a name',
 'Créez votre équipe pour commencer à noter les lancers.':'Create your team to start tracking shots.',
 /* Carte du joueur */
-'Carte du joueur':'Player card','lancers':'shots','parties':'games','partie':'game','écart moyen':'average miss','hog à hog':'hog to hog','tours en moyenne':'average turns','take-outs réussis':'successful take-outs',
+'Carte du joueur':'Player card','lancers':'shots','parties':'games','partie':'game','écart moyen':'average miss','hog à hog':'hog to hog','hog à hog, sans les take-outs':'hog to hog, excluding take-outs','tours en moyenne':'average turns','take-outs réussis':'successful take-outs',
 'Points forts':'Strengths','À travailler':'To work on','Où la pierre s’arrête':'Where the stone stops',
 'Le centre représente la position voulue, peu importe où elle était sur la glace. Chaque point est un arrêt, placé selon sa distance et sa direction par rapport à la cible. Le cercle avec un point au centre est la moyenne. Placements et gardes seulement.':'The center is the target position, wherever it was on the ice. Each dot is where a stone stopped, placed by its distance and direction from the target. The circle with a dot in the middle is the average. Draws and guards only.',
 'Dispersion des arrêts autour de la position voulue':'Spread of stops around the target position',
@@ -391,7 +391,7 @@ const E={
 /* Historique et revue */
 'Partie':'Game','Total':'Total','Revoir un bout':'Review an end','Pierre lancée':'Thrown stone','Lancer affiché':'Shot shown',
 'Statistiques de la partie':'Game statistics','Joueur':'Player','Lancers':'Shots','Pourcentage':'Percentage','Écart moyen':'Average miss','Hog à hog':'Hog to hog','Take-outs':'Take-outs',
-'Le pourcentage suit la méthode officielle : la somme des notes divisée par 4 fois le nombre de lancers notés. L’écart moyen compare la position voulue et la position finale, sauf pour les take-outs.':'The percentage follows the official method: the sum of ratings divided by 4 times the number of rated shots. Average miss compares the target and final positions, except for take-outs.',
+'Le pourcentage suit la méthode officielle : la somme des notes divisée par 4 fois le nombre de lancers notés. L’écart moyen compare la position voulue et la position finale, sauf pour les take-outs. Le temps hog à hog exclut les take-outs, plus rapides.':'The percentage follows the official method: the sum of ratings divided by 4 times the number of rated shots. Average miss compares the target and final positions, except for take-outs. Hog-to-hog time excludes take-outs, which are faster.',
 'Exporter cette partie (CSV)':'Export this game (CSV)','Supprimer la partie':'Delete game','Reprendre cette partie':'Resume this game',
 'Données':'Data','Exportez tout pour faire une copie de sécurité ou pour transférer les données vers un autre téléphone.':'Export everything as a backup or to move your data to another phone.',
 'Exporter toutes les données (JSON)':'Export all data (JSON)','Importer des données':'Import data',
@@ -1215,7 +1215,7 @@ ${n?`<ol class="shots">${e.shots.map((s,i)=>`<li data-act="rpGo" data-v="${i+1}"
 <h3>Statistiques de la partie</h3>
 ${S.length?`<div class="tablewrap"><table><tr><th>Joueur</th><th>Lancers</th>${hasNote?'<th>Pourcentage</th>':''}${hasEc?'<th>Écart moyen</th>':''}${hasHog?'<th>Hog à hog</th>':''}${hasRot?'<th>Tours</th>':''}${hasTO?'<th>Take-outs</th>':''}</tr>
 ${S.map(r=>`<tr><td><i class="dot" style="background:${colorOf(g,r.team)};vertical-align:-2px;margin-right:6px"></i>${esc(r.name)}</td><td>${r.n}</td>${hasNote?`<td>${r.notes.length?Math.round(avg(r.notes)/4*100)+' %':'–'}</td>`:''}${hasEc?`<td>${r.ec.length?Math.round(avg(r.ec))+' cm':'–'}</td>`:''}${hasHog?`<td>${r.hog.length?fr(avg(r.hog),2)+' s':'–'}</td>`:''}${hasRot?`<td>${r.rots.length?fr(avg(r.rots),1):'–'}</td>`:''}${hasTO?`<td>${r.st?`${r.so} sur ${r.st}`:'–'}</td>`:''}</tr>`).join('')}</table></div>
-<p class="muted small">Le pourcentage suit la méthode officielle : la somme des notes divisée par 4 fois le nombre de lancers notés. L’écart moyen compare la position voulue et la position finale, sauf pour les take-outs.</p>`:'<div class="empty">Aucun lancer noté dans cette partie.</div>'}
+<p class="muted small">Le pourcentage suit la méthode officielle : la somme des notes divisée par 4 fois le nombre de lancers notés. L’écart moyen compare la position voulue et la position finale, sauf pour les take-outs. Le temps hog à hog exclut les take-outs, plus rapides.</p>`:'<div class="empty">Aucun lancer noté dans cette partie.</div>'}
 <div class="stack" style="margin-top:18px"><button class="btn c" data-act="exportCsv">Exporter cette partie (CSV)</button><button class="btn danger c" data-act="delGame">Supprimer la partie</button></div>`;
   ice=makeIce($('#rpice'),{cam:rpCam,region:HOUSE_FIT,pan:()=>true});
   drawReplay();
@@ -1242,7 +1242,7 @@ function stats(g){
   const m=new Map();
   for(const e of g.ends)for(const s of e.shots){const key=s.team+'|'+s.playerId+'|'+s.playerName;let r=m.get(key);
     if(!r){r={team:s.team,name:s.playerName,n:0,ec:[],hog:[],notes:[],rots:[],st:0,so:0};m.set(key,r)}
-    r.n++;if(s.ecart!=null)r.ec.push(s.ecart);if(s.hogTime!=null)r.hog.push(s.hogTime);if(s.note!=null)r.notes.push(s.note);if(s.rot!=null)r.rots.push(s.rot);
+    r.n++;if(s.ecart!=null)r.ec.push(s.ecart);if(s.hogTime!=null&&s.type!=='sortie')r.hog.push(s.hogTime);if(s.note!=null)r.notes.push(s.note);if(s.rot!=null)r.rots.push(s.rot);
     if(s.type==='sortie'){r.st++;if(sortieOk(s))r.so++}}
   return[...m.values()].sort((a,b)=>a.team.localeCompare(b.team));
 }
@@ -1257,7 +1257,7 @@ function analyse(pid){
   const byType=TYPES.map(([k,l])=>({k,l,count:S.filter(s=>s.type===k).length,notes:rated(s=>s.type===k)}));
   const byTurn=TURNS.map(([k,l])=>({k,l,count:S.filter(s=>s.turn===k).length,notes:rated(s=>s.turn===k)}));
   const offs=S.filter(s=>s.target&&s.final&&s.type!=='sortie').map(s=>({dx:s.final.x-s.target.x,dy:s.final.y-s.target.y}));
-  const hog=S.map(s=>s.hogTime).filter(v=>v!=null),rots=S.map(s=>s.rot).filter(v=>v!=null),ec=S.map(s=>s.ecart).filter(v=>v!=null);
+  const hog=S.filter(s=>s.type!=='sortie').map(s=>s.hogTime).filter(v=>v!=null),rots=S.map(s=>s.rot).filter(v=>v!=null),ec=S.map(s=>s.ecart).filter(v=>v!=null);
   const to=S.filter(s=>s.type==='sortie'),toOk=to.filter(sortieOk).length;
   const gm=new Map();for(const x of L){let r=gm.get(x.g.id);if(!r){r={date:x.g.date,notes:[],opp:x.g.B?(x.s.team==='A'?x.g.B.name:x.g.A.name):null};gm.set(x.g.id,r)}if(x.s.note!=null)r.notes.push(x.s.note)}
   const games=[...gm.values()].sort((a,b)=>a.date.localeCompare(b.date));
@@ -1329,7 +1329,7 @@ function renderPlayer(){
   <div class="phead"><div><span class="ppos">${pos}${pos?', ':''}${esc(t.name)}</span><h2>${esc(name)}</h2><span class="pmeta">${p.hand==='L'?'Gaucher':'Droitier'}, ${start.toLowerCase()}</span></div>${gaugeSVG(A.pct,color)}</div>
   <div class="tiles">
     ${tile(A.S.length,'lancers')}${tile(A.games.length,A.games.length>1?'parties':'partie')}
-    ${tile(A.ec.length?Math.round(avg(A.ec))+' cm':'–','écart moyen')}${tile(A.hog.length?fr(avg(A.hog),2)+' s':'–','hog à hog')}
+    ${tile(A.ec.length?Math.round(avg(A.ec))+' cm':'–','écart moyen')}${tile(A.hog.length?fr(avg(A.hog),2)+' s':'–','hog à hog, sans les take-outs')}
     ${A.rots.length?tile(fr(avg(A.rots),1),'tours en moyenne'):''}${A.to.length?tile(`${A.toOk} sur ${A.to.length}`,'take-outs réussis'):''}
   </div>
 </div>
